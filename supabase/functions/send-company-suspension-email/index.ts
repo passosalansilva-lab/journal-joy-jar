@@ -76,7 +76,7 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "CardapioOn <noreply@cardapioon.com.br>",
+        from: "CardpOn <contato@cardpondelivery.com>",
         to: [ownerEmail],
         subject: `⚠️ Sua empresa ${company.name} foi suspensa - CardpOn`,
         html: `

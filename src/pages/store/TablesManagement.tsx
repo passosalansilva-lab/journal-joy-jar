@@ -881,6 +881,9 @@ export default function TablesManagement() {
                             <span className="truncate font-medium">
                               {session.customer_name || 'Cliente não identificado'}
                             </span>
+                            {session.customer_count > 0 && (
+                              <span className="text-muted-foreground">({session.customer_count})</span>
+                            )}
                           </div>
                           <div className={cn(
                             'flex items-center gap-2 text-xs',

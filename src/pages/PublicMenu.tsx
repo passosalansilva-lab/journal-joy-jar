@@ -1673,7 +1673,10 @@ function PublicMenuContent() {
                  const displayPrice = getDisplayPrice(product);
                  const isCombo = comboProductIds.has(product.id);
                  const isSelectableCombo = selectableComboProductIds.has(product.id);
-                 const isAcaiProduct = !!product.category_id && acaiCategoryIds.includes(product.category_id);
+                 // Açaí só mostra "Personalizável" se tiver tamanhos configurados
+                 const isAcaiWithSizes = !!product.category_id && 
+                   acaiCategoryIds.includes(product.category_id) && 
+                   !!acaiCategoryBasePrices[product.category_id];
                  return (
                    <ProductCard
                      key={product.id}
@@ -1686,7 +1689,7 @@ function PublicMenuContent() {
                      onToggleFavorite={(e) => handleToggleFavoriteClick(product.id, e)}
                      isCombo={isCombo}
                      isSelectableCombo={isSelectableCombo}
-                     isAcaiProduct={isAcaiProduct}
+                     isAcaiProduct={isAcaiWithSizes}
                    />
                  );
                })}
@@ -1705,7 +1708,10 @@ function PublicMenuContent() {
                 .map((product) => {
                  const displayPrice = getDisplayPrice(product);
                  const isSelectableCombo = selectableComboProductIds.has(product.id);
-                 const isAcaiProduct = !!product.category_id && acaiCategoryIds.includes(product.category_id);
+                 // Açaí só mostra "Personalizável" se tiver tamanhos configurados
+                 const isAcaiWithSizes = !!product.category_id && 
+                   acaiCategoryIds.includes(product.category_id) && 
+                   !!acaiCategoryBasePrices[product.category_id];
                  return (
                    <ProductCard
                      key={product.id}
@@ -1718,7 +1724,7 @@ function PublicMenuContent() {
                      onToggleFavorite={(e) => handleToggleFavoriteClick(product.id, e)}
                      isCombo={comboProductIds.has(product.id)}
                      isSelectableCombo={isSelectableCombo}
-                     isAcaiProduct={isAcaiProduct}
+                     isAcaiProduct={isAcaiWithSizes}
                    />
                  );
                })}

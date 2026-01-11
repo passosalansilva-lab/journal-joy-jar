@@ -197,7 +197,7 @@ export default function HelpWiki() {
           Atendimento rápido para problemas em pedidos, pagamentos ou entregas.
         </p>
       <a
-        href="https://wa.me/5518996581614?text=Olá%20CardpOn!%20Estou%20precisando%20de%20ajuda%20no%20meu%20painel%20da%20loja.%20Podem%20me%20atender%3F"
+        href="https://wa.me/5518996192561?text=Olá%20CardpOn!%20Estou%20precisando%20de%20ajuda%20no%20meu%20painel%20da%20loja.%20Podem%20me%20atender%3F"
         target="_blank"
         className="inline-block mt-1 text-sm font-medium text-green-600 hover:underline"
       >

@@ -135,6 +135,11 @@ export function CheckoutPage({ companyId, companyName, companySlug, companyPhone
   const navigate = useNavigate();
   const { items, subtotal, clearCart } = useCart();
   const { toast } = useToast();
+
+  // Debug: Log table props on mount and changes
+  useEffect(() => {
+    console.log('[CheckoutPage] Props received:', { tableNumber, tableSessionId, companyId });
+  }, [tableNumber, tableSessionId, companyId]);
   
   const getCustomerStorageKey = (companyId: string | null | undefined) =>
     companyId ? `menupro_customer_${companyId}` : 'menupro_customer';

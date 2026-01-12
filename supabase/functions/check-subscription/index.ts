@@ -77,7 +77,7 @@ serve(async (req) => {
     // This handles Mercado Pago subscriptions that don't use Stripe
     const { data: company, error: companyError } = await adminClient
       .from("companies")
-      .select("id, subscription_status, subscription_plan, subscription_end_date, revenue_limit_bonus")
+      .select("id, subscription_status, subscription_plan, subscription_end_date, subscription_grace_end_date, revenue_limit_bonus")
       .eq("owner_id", user.id)
       .maybeSingle();
     
@@ -86,6 +86,78 @@ serve(async (req) => {
 
     if (companyError) {
       logStep("Error fetching company", { error: companyError.message });
+    }
+
+    // Handle GRACE PERIOD - company can still operate during grace period
+    if (company?.subscription_status === "grace_period" && company?.subscription_plan) {
+      const graceEndDate = company.subscription_grace_end_date;
+      const isGraceExpired = graceEndDate && new Date(graceEndDate) < new Date();
+
+      if (isGraceExpired) {
+        // Grace period expired - reset to free
+        logStep("Grace period expired, resetting to free", { graceEndDate });
+        await adminClient
+          .from("companies")
+          .update({
+            subscription_status: "free",
+            subscription_plan: null,
+            subscription_end_date: null,
+            subscription_grace_end_date: null,
+          })
+          .eq("id", company.id);
+
+        return new Response(
+          JSON.stringify({
+            subscribed: false,
+            plan: "free",
+            revenueLimit: 2000 + revenueLimitBonus,
+            revenueLimitBonus,
+            displayName: "Plano Gratuito",
+            graceExpired: true,
+          }),
+          {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            status: 200,
+          }
+        );
+      }
+
+      // Still in valid grace period - return subscription as active (allows orders)
+      const { data: plan } = await adminClient
+        .from("subscription_plans")
+        .select("key, name, revenue_limit")
+        .eq("key", company.subscription_plan)
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (plan) {
+        const effectiveLimit = (plan.revenue_limit || 5000) + revenueLimitBonus;
+        
+        logStep("Company in grace period - still allowing access", {
+          plan: plan.key,
+          graceEndDate,
+          baseLimit: plan.revenue_limit,
+          bonus: revenueLimitBonus,
+          effectiveLimit
+        });
+
+        return new Response(
+          JSON.stringify({
+            subscribed: true,
+            plan: plan.key,
+            revenueLimit: effectiveLimit,
+            revenueLimitBonus,
+            displayName: plan.name,
+            subscriptionEnd: company.subscription_end_date,
+            inGracePeriod: true,
+            graceEndDate: graceEndDate,
+          }),
+          {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            status: 200,
+          }
+        );
+      }
     }
 
     // If company has an active subscription in the database, use it directly
@@ -133,16 +205,48 @@ serve(async (req) => {
           );
         }
       } else {
-        // Subscription expired - reset to free
-        logStep("Subscription expired, resetting to free", { subscriptionEnd });
+        // Subscription expired - activate grace period instead of resetting immediately
+        logStep("Subscription expired, activating grace period", { subscriptionEnd });
+        
+        const graceEnd = new Date();
+        graceEnd.setDate(graceEnd.getDate() + 7); // 7 days grace period
+
         await adminClient
           .from("companies")
           .update({
-            subscription_status: "free",
-            subscription_plan: null,
-            subscription_end_date: null,
+            subscription_status: "grace_period",
+            subscription_grace_end_date: graceEnd.toISOString(),
           })
           .eq("id", company.id);
+
+        // Get plan details for response
+        const { data: plan } = await adminClient
+          .from("subscription_plans")
+          .select("key, name, revenue_limit")
+          .eq("key", company.subscription_plan)
+          .eq("is_active", true)
+          .maybeSingle();
+
+        if (plan) {
+          const effectiveLimit = (plan.revenue_limit || 5000) + revenueLimitBonus;
+
+          return new Response(
+            JSON.stringify({
+              subscribed: true,
+              plan: plan.key,
+              revenueLimit: effectiveLimit,
+              revenueLimitBonus,
+              displayName: plan.name,
+              subscriptionEnd,
+              inGracePeriod: true,
+              graceEndDate: graceEnd.toISOString(),
+            }),
+            {
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+              status: 200,
+            }
+          );
+        }
       }
     }
 

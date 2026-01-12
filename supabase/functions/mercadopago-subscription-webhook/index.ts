@@ -11,6 +11,8 @@ const logStep = (step: string, details?: any) => {
   console.log(`[MP-SUBSCRIPTION-WEBHOOK] ${step}${detailsStr}`);
 };
 
+const GRACE_PERIOD_DAYS = 7;
+
 // Verify webhook signature from Mercado Pago
 const verifySignature = async (
   xSignature: string | null,
@@ -74,6 +76,45 @@ const verifySignature = async (
   }
 };
 
+// Helper to send payment alert
+async function sendPaymentAlert(
+  supabaseUrl: string,
+  serviceKey: string,
+  companyId: string,
+  ownerId: string,
+  type: string,
+  planName: string,
+  graceEndDate?: string,
+  amount?: number
+) {
+  try {
+    const response = await fetch(`${supabaseUrl}/functions/v1/send-subscription-payment-alert`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${serviceKey}`,
+      },
+      body: JSON.stringify({
+        companyId,
+        ownerId,
+        type,
+        planName,
+        graceEndDate,
+        amount,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      logStep("Failed to send payment alert", { type, companyId, error: errorText });
+    } else {
+      logStep("Payment alert sent", { type, companyId });
+    }
+  } catch (err) {
+    logStep("Error sending payment alert", { type, companyId, error: String(err) });
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -88,11 +129,10 @@ serve(async (req) => {
     }
 
     const webhookSecret = Deno.env.get("MERCADO_PAGO_WEBHOOK_SECRET");
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
-    const supabaseClient = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
-    );
+    const supabaseClient = createClient(supabaseUrl, serviceKey);
 
     // Get webhook data
     const body = await req.json();
@@ -146,6 +186,7 @@ serve(async (req) => {
       const payment = await paymentResponse.json();
       logStep("Payment details", { 
         status: payment.status, 
+        statusDetail: payment.status_detail,
         externalReference: payment.external_reference,
         amount: payment.transaction_amount 
       });
@@ -172,8 +213,73 @@ serve(async (req) => {
       }
 
       const isPixPayment = referenceData.type === "pix_subscription";
-
       const { companyId, planKey, userId } = referenceData;
+
+      // Get plan details for notifications
+      const { data: plan } = await supabaseClient
+        .from("subscription_plans")
+        .select("name, price")
+        .eq("key", planKey)
+        .single();
+
+      const planName = plan?.name || planKey;
+      const planPrice = plan?.price || payment.transaction_amount;
+
+      // Handle REJECTED payments - activate grace period
+      if (payment.status === "rejected") {
+        logStep("Payment rejected - activating grace period", { 
+          status: payment.status, 
+          statusDetail: payment.status_detail,
+          companyId, 
+          planKey 
+        });
+
+        // Calculate grace period end date
+        const graceEnd = new Date();
+        graceEnd.setDate(graceEnd.getDate() + GRACE_PERIOD_DAYS);
+
+        // Update company with grace period
+        const { error: updateError } = await supabaseClient
+          .from("companies")
+          .update({
+            subscription_status: "grace_period",
+            subscription_grace_end_date: graceEnd.toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", companyId);
+
+        if (updateError) {
+          logStep("Error updating company for grace period", { error: updateError.message });
+        } else {
+          logStep("Grace period activated", { companyId, graceEnd: graceEnd.toISOString() });
+        }
+
+        // Send payment failed alert
+        if (userId) {
+          await sendPaymentAlert(
+            supabaseUrl,
+            serviceKey,
+            companyId,
+            userId,
+            "payment_failed",
+            planName,
+            graceEnd.toISOString(),
+            planPrice
+          );
+        }
+
+        return new Response(JSON.stringify({ 
+          received: true, 
+          processed: true,
+          action: "grace_period_activated",
+          reason: payment.status_detail,
+          graceEnd: graceEnd.toISOString(),
+          companyId 
+        }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 200,
+        });
+      }
 
       // Handle REFUNDED payments - cancel subscription
       if (payment.status === "refunded" || payment.status === "cancelled" || payment.status === "charged_back") {
@@ -190,6 +296,7 @@ serve(async (req) => {
             subscription_plan: null,
             subscription_status: "free",
             subscription_end_date: null,
+            subscription_grace_end_date: null,
             updated_at: new Date().toISOString(),
           })
           .eq("id", companyId);
@@ -208,7 +315,7 @@ serve(async (req) => {
             .insert({
               user_id: userId,
               title: "Assinatura cancelada",
-              message: "Sua assinatura foi cancelada devido a um estorno. Você voltou para o plano gratuito.",
+              message: "Sua assinatura foi cancelada devido a um estorno. Voce voltou para o plano gratuito.",
               type: "warning",
               data: {
                 type: "subscription_cancelled",
@@ -235,14 +342,14 @@ serve(async (req) => {
       if (payment.status === "approved") {
         logStep("Processing approved subscription", { companyId, planKey, userId });
 
-        // Get plan details
-        const { data: plan, error: planError } = await supabaseClient
+        // Get full plan details
+        const { data: fullPlan, error: planError } = await supabaseClient
           .from("subscription_plans")
           .select("*")
           .eq("key", planKey)
           .single();
 
-        if (planError || !plan) {
+        if (planError || !fullPlan) {
           logStep("Plan not found", { planKey, error: planError?.message });
           throw new Error(`Plan not found: ${planKey}`);
         }
@@ -251,13 +358,14 @@ serve(async (req) => {
         const subscriptionEnd = new Date();
         subscriptionEnd.setDate(subscriptionEnd.getDate() + 30);
 
-        // Update company subscription
+        // Update company subscription - clear grace period if was in grace
         const { error: updateError } = await supabaseClient
           .from("companies")
           .update({
             subscription_plan: planKey,
             subscription_status: "active",
             subscription_end_date: subscriptionEnd.toISOString(),
+            subscription_grace_end_date: null, // Clear grace period
             updated_at: new Date().toISOString(),
           })
           .eq("id", companyId);
@@ -276,14 +384,14 @@ serve(async (req) => {
         // Create notification for the user
         if (userId) {
           const notificationMessage = isPixPayment 
-            ? `Seu plano ${plan.name} foi ativado com sucesso via PIX. Lembre-se: o pagamento precisa ser renovado manualmente a cada mês.`
-            : `Seu plano ${plan.name} foi ativado com sucesso. Aproveite todos os benefícios!`;
+            ? `Seu plano ${fullPlan.name} foi ativado com sucesso via PIX. Lembre-se: o pagamento precisa ser renovado manualmente a cada mes.`
+            : `Seu plano ${fullPlan.name} foi ativado com sucesso. Aproveite todos os beneficios!`;
           
           await supabaseClient
             .from("notifications")
             .insert({
               user_id: userId,
-              title: "Assinatura ativada! 🎉",
+              title: "Assinatura ativada!",
               message: notificationMessage,
               type: "success",
               data: {
@@ -308,7 +416,31 @@ serve(async (req) => {
         });
       }
 
-      // For other payment statuses (pending, in_process, etc.), just acknowledge
+      // Handle PENDING payments (PIX waiting for payment)
+      if (payment.status === "pending" || payment.status === "in_process") {
+        logStep("Payment pending", { status: payment.status, statusDetail: payment.status_detail });
+
+        // For PIX, send reminder if it's been pending for a while
+        if (isPixPayment && userId) {
+          await sendPaymentAlert(
+            supabaseUrl,
+            serviceKey,
+            companyId,
+            userId,
+            "payment_pending",
+            planName,
+            undefined,
+            planPrice
+          );
+        }
+
+        return new Response(JSON.stringify({ received: true, status: payment.status }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 200,
+        });
+      }
+
+      // For other payment statuses, just acknowledge
       logStep("Payment not in final state, skipping", { status: payment.status });
       return new Response(JSON.stringify({ received: true, status: payment.status }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },

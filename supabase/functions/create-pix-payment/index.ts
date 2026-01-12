@@ -31,6 +31,10 @@ interface PixPaymentRequest {
   notes?: string;
   needsChange?: boolean;
   changeFor?: number;
+  // Table order fields
+  tableSessionId?: string;
+  tableNumber?: number;
+  source?: string;
 }
 
 serve(async (req) => {
@@ -99,8 +103,12 @@ serve(async (req) => {
       notes: body.notes,
       needs_change: body.needsChange,
       change_for: body.changeFor,
-      payment_method: 'online',
+      payment_method: 'pix',
       created_at: new Date().toISOString(),
+      // Table order fields
+      table_session_id: body.tableSessionId || null,
+      table_number: body.tableNumber || null,
+      source: body.source || 'online',
     };
 
     // Create pending order record

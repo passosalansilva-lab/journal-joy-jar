@@ -139,6 +139,7 @@ serve(async (req) => {
 
     // Create the order
     const newOrderId = crypto.randomUUID();
+    const isTableOrder = !!orderData.table_session_id;
     
     const { error: orderError } = await supabaseClient
       .from("orders")
@@ -160,6 +161,9 @@ serve(async (req) => {
         discount_amount: orderData.discount_amount || 0,
         estimated_delivery_time: estimatedDeliveryTime.toISOString(),
         stripe_payment_intent_id: `picpay_${picpayChargeId}`, // Store PicPay ID for reference
+        // Table order fields
+        table_session_id: orderData.table_session_id || null,
+        source: orderData.source || (isTableOrder ? 'table' : 'online'),
       });
 
     if (orderError) {

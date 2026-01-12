@@ -14,6 +14,9 @@ import {
   Smartphone,
   Wallet,
   DollarSign,
+  UtensilsCrossed,
+  ChefHat,
+  Sparkles,
 } from 'lucide-react';
 import {
   Sheet,
@@ -46,6 +49,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface TableSession {
   id: string;
@@ -118,10 +122,10 @@ interface TableSessionModalProps {
 }
 
 const PAYMENT_METHODS = [
-  { id: 'cash', label: 'Dinheiro', icon: Banknote },
-  { id: 'pix', label: 'PIX', icon: Smartphone },
-  { id: 'credit_card', label: 'Cartão de Crédito', icon: CreditCard },
-  { id: 'debit_card', label: 'Cartão de Débito', icon: Wallet },
+  { id: 'cash', label: 'Dinheiro', icon: Banknote, color: 'from-green-500 to-emerald-500' },
+  { id: 'pix', label: 'PIX', icon: Smartphone, color: 'from-teal-500 to-cyan-500' },
+  { id: 'credit_card', label: 'Crédito', icon: CreditCard, color: 'from-blue-500 to-indigo-500' },
+  { id: 'debit_card', label: 'Débito', icon: Wallet, color: 'from-purple-500 to-violet-500' },
 ];
 
 export function TableSessionModal({
@@ -456,154 +460,229 @@ export function TableSessionModal({
     return '';
   };
 
+  // Format session duration
+  const getSessionDuration = () => {
+    if (!session) return '';
+    const opened = new Date(session.opened_at);
+    const now = new Date();
+    const diffMs = now.getTime() - opened.getTime();
+    const hours = Math.floor(diffMs / (1000 * 60 * 60));
+    const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+    if (hours > 0) {
+      return `${hours}h ${minutes}min`;
+    }
+    return `${minutes}min`;
+  };
+
   if (!table || !session) return null;
 
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent className="w-full sm:max-w-xl md:max-w-2xl lg:max-w-3xl p-0 flex flex-col">
-          <SheetHeader className="p-4 border-b">
-            <div className="flex items-center justify-between">
-              <div>
-                <SheetTitle className="text-xl">
-                  Mesa {table.table_number}
-                  {table.name && <span className="text-muted-foreground font-normal ml-2">({table.name})</span>}
-                </SheetTitle>
-                <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
-                  {session.customer_name && (
-                    <span className="flex items-center gap-1">
-                      <Users className="h-3 w-3" />
-                      {session.customer_name}
-                    </span>
-                  )}
-                  {session.customer_count > 0 && (
-                    <span className="text-xs">({session.customer_count} pessoas)</span>
-                  )}
-                  <span className="flex items-center gap-1">
-                    <Clock className="h-3 w-3" />
-                    {formatDistanceToNow(new Date(session.opened_at), { addSuffix: true, locale: ptBR })}
-                  </span>
+        <SheetContent className="w-full sm:max-w-xl md:max-w-2xl lg:max-w-3xl p-0 flex flex-col bg-gradient-to-br from-background via-background to-muted/30">
+          {/* Enhanced Header */}
+          <SheetHeader className="p-0">
+            <div className="relative overflow-hidden">
+              {/* Decorative background */}
+              <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent" />
+              <div className="absolute -top-10 -right-10 w-40 h-40 bg-primary/10 rounded-full blur-3xl" />
+              
+              <div className="relative p-6">
+                <div className="flex items-start justify-between gap-4">
+                  {/* Table Info */}
+                  <div className="flex items-center gap-4">
+                    <div className="relative">
+                      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg shadow-primary/25">
+                        <span className="text-2xl font-black text-primary-foreground">
+                          {table.table_number}
+                        </span>
+                      </div>
+                      <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-emerald-500 border-2 border-background flex items-center justify-center">
+                        <Check className="w-3 h-3 text-white" />
+                      </div>
+                    </div>
+                    <div>
+                      <SheetTitle className="text-2xl font-bold">
+                        Mesa {table.table_number}
+                      </SheetTitle>
+                      {table.name && (
+                        <p className="text-muted-foreground text-sm">{table.name}</p>
+                      )}
+                      <div className="flex items-center gap-3 mt-2">
+                        {session.customer_name && (
+                          <Badge variant="secondary" className="gap-1 font-medium">
+                            <Users className="w-3 h-3" />
+                            {session.customer_name}
+                          </Badge>
+                        )}
+                        <Badge variant="outline" className="gap-1">
+                          <Clock className="w-3 h-3" />
+                          {getSessionDuration()}
+                        </Badge>
+                        {session.customer_count > 0 && (
+                          <Badge variant="outline" className="gap-1">
+                            <Users className="w-3 h-3" />
+                            {session.customer_count} {session.customer_count === 1 ? 'pessoa' : 'pessoas'}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Total */}
+                  <div className="text-right">
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Total</p>
+                    <p className="text-3xl font-black text-primary">{formatCurrency(totalSession)}</p>
+                    <p className="text-sm text-muted-foreground">{allItems.length} itens</p>
+                  </div>
                 </div>
-              </div>
-              <div className="text-right">
-                <div className="text-2xl font-bold text-primary">{formatCurrency(totalSession)}</div>
-                <div className="text-sm text-muted-foreground">{allItems.length} itens</div>
               </div>
             </div>
           </SheetHeader>
 
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="flex-1 flex flex-col overflow-hidden">
-            <TabsList className="mx-4 mt-2">
-              <TabsTrigger value="items" className="flex-1">
-                <Receipt className="h-4 w-4 mr-2" />
-                Conta ({allItems.length})
+            <TabsList className="mx-4 p-1 h-12 bg-muted/50">
+              <TabsTrigger value="items" className="flex-1 gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm h-10">
+                <Receipt className="h-4 w-4" />
+                <span>Conta</span>
+                {allItems.length > 0 && (
+                  <Badge variant="secondary" className="ml-1 bg-primary/10 text-primary">
+                    {allItems.length}
+                  </Badge>
+                )}
               </TabsTrigger>
-              <TabsTrigger value="add" className="flex-1">
-                <Plus className="h-4 w-4 mr-2" />
-                Adicionar
+              <TabsTrigger value="add" className="flex-1 gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm h-10">
+                <Plus className="h-4 w-4" />
+                <span>Adicionar</span>
                 {cart.length > 0 && (
-                  <Badge variant="secondary" className="ml-2">{cart.length}</Badge>
+                  <Badge className="ml-1 bg-primary text-primary-foreground">
+                    {cart.length}
+                  </Badge>
                 )}
               </TabsTrigger>
             </TabsList>
 
             <TabsContent value="items" className="flex-1 overflow-hidden m-0 flex flex-col">
               {loading ? (
-                <div className="flex items-center justify-center h-32">
-                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                <div className="flex-1 flex items-center justify-center">
+                  <div className="text-center">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-3" />
+                    <p className="text-sm text-muted-foreground">Carregando...</p>
+                  </div>
                 </div>
               ) : allItems.length === 0 ? (
-                <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground p-4">
-                  <ShoppingCart className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>Nenhum item pedido ainda</p>
-                  <Button className="mt-4" onClick={() => setActiveTab('add')}>
-                    <Plus className="h-4 w-4 mr-2" />
+                <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground p-8">
+                  <div className="w-20 h-20 rounded-full bg-muted/50 flex items-center justify-center mb-4">
+                    <UtensilsCrossed className="h-10 w-10 opacity-50" />
+                  </div>
+                  <p className="text-lg font-medium mb-1">Mesa vazia</p>
+                  <p className="text-sm text-center mb-6">Nenhum pedido ainda. Adicione itens para começar!</p>
+                  <Button onClick={() => setActiveTab('add')} className="gap-2">
+                    <Plus className="h-4 w-4" />
                     Adicionar primeiro item
                   </Button>
                 </div>
               ) : (
                 <>
-                  <ScrollArea className="flex-1 p-4">
-                    <div className="space-y-2">
-                      {allItems.map((item) => (
-                        <Card key={item.id} className="p-3">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <Badge variant="outline" className="shrink-0">
-                                  {item.quantity}x
-                                </Badge>
-                                <span className="font-medium">{item.product_name}</span>
-                              </div>
-                              {/* Show options */}
-                              {item.options && (
-                                <p className="text-xs text-primary mt-1">
-                                  {formatItemOptions(item.options)}
-                                </p>
-                              )}
-                              {item.notes && (
-                                <p className="text-xs text-muted-foreground mt-1">
-                                  Obs: {item.notes}
-                                </p>
-                              )}
-                            </div>
-                            <div className="text-right shrink-0">
-                              <div className="font-semibold">{formatCurrency(item.total_price)}</div>
-                              <div className="text-xs text-muted-foreground">
-                                {formatCurrency(item.unit_price)} un.
-                              </div>
-                            </div>
-                          </div>
-                        </Card>
-                      ))}
-                    </div>
+                  <ScrollArea className="flex-1 px-4 py-3">
+                    <AnimatePresence mode="popLayout">
+                      <div className="space-y-2">
+                        {allItems.map((item, index) => (
+                          <motion.div
+                            key={item.id}
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, x: -20 }}
+                            transition={{ delay: index * 0.05 }}
+                          >
+                            <Card className="overflow-hidden hover:shadow-md transition-shadow">
+                              <CardContent className="p-4">
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <span className="inline-flex items-center justify-center w-6 h-6 rounded-md bg-primary/10 text-primary text-xs font-bold">
+                                        {item.quantity}x
+                                      </span>
+                                      <span className="font-semibold truncate">{item.product_name}</span>
+                                    </div>
+                                    {item.options && (
+                                      <p className="text-xs text-primary/80 ml-8">
+                                        {formatItemOptions(item.options)}
+                                      </p>
+                                    )}
+                                    {item.notes && (
+                                      <p className="text-xs text-muted-foreground ml-8 italic">
+                                        Obs: {item.notes}
+                                      </p>
+                                    )}
+                                  </div>
+                                  <div className="text-right shrink-0">
+                                    <div className="font-bold text-lg">{formatCurrency(item.total_price)}</div>
+                                    <div className="text-xs text-muted-foreground">
+                                      {formatCurrency(item.unit_price)} / un
+                                    </div>
+                                  </div>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          </motion.div>
+                        ))}
+                      </div>
+                    </AnimatePresence>
                   </ScrollArea>
 
-                  {/* Session summary and payment */}
-                  <div className="p-4 border-t bg-muted/30 space-y-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Cliente:</span>
-                      <span className="font-medium">{session.customer_name || 'Não identificado'}</span>
+                  {/* Enhanced Summary Footer */}
+                  <div className="p-4 border-t bg-gradient-to-t from-muted/50 to-transparent">
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">Cliente</span>
+                        <span className="font-medium">{session.customer_name || 'Não identificado'}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">Pessoas</span>
+                        <span className="font-medium">{session.customer_count || 1}</span>
+                      </div>
+                      <Separator />
+                      <div className="flex items-center justify-between">
+                        <span className="text-lg font-semibold">Total da Mesa</span>
+                        <span className="text-2xl font-black text-primary">{formatCurrency(totalSession)}</span>
+                      </div>
+                      <Button 
+                        className="w-full h-12 text-base font-semibold gap-2 bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary shadow-lg shadow-primary/25" 
+                        size="lg" 
+                        onClick={handleOpenPaymentDialog}
+                        disabled={allItems.length === 0}
+                      >
+                        <DollarSign className="h-5 w-5" />
+                        Fechar Conta
+                      </Button>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Pessoas:</span>
-                      <span className="font-medium">{session.customer_count || 1}</span>
-                    </div>
-                    <Separator />
-                    <div className="flex justify-between items-center text-lg">
-                      <span className="font-semibold">Total da Mesa:</span>
-                      <span className="font-bold text-primary">{formatCurrency(totalSession)}</span>
-                    </div>
-                    <Button 
-                      className="w-full" 
-                      size="lg" 
-                      onClick={handleOpenPaymentDialog}
-                      disabled={allItems.length === 0}
-                    >
-                      <DollarSign className="h-4 w-4 mr-2" />
-                      Fechar Conta
-                    </Button>
                   </div>
                 </>
               )}
             </TabsContent>
 
             <TabsContent value="add" className="flex-1 overflow-hidden m-0 flex flex-col">
-              <div className="p-4 border-b space-y-3">
+              {/* Search and Categories */}
+              <div className="p-4 border-b space-y-3 bg-muted/30">
                 <Input
                   placeholder="Buscar produto..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
+                  className="h-11"
                 />
                 <ScrollArea className="w-full">
-                  <div className="flex gap-2 pb-2">
+                  <div className="flex gap-2 pb-1">
                     {categories.map((cat) => (
                       <Button
                         key={cat.id}
                         variant={selectedCategory === cat.id ? 'default' : 'outline'}
                         size="sm"
                         onClick={() => setSelectedCategory(cat.id)}
-                        className="shrink-0"
+                        className={cn(
+                          "shrink-0 h-9",
+                          selectedCategory === cat.id && "shadow-md"
+                        )}
                       >
                         {cat.name}
                       </Button>
@@ -613,122 +692,131 @@ export function TableSessionModal({
               </div>
 
               <div className="flex-1 flex overflow-hidden">
-                {/* Products list */}
+                {/* Products grid */}
                 <ScrollArea className="flex-1 p-4">
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     {filteredProducts.map((product) => (
-                      <Card
+                      <motion.div
                         key={product.id}
-                        className="cursor-pointer hover:bg-accent transition-colors overflow-hidden"
-                        onClick={() => handleProductClick(product)}
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
                       >
-                        <CardContent className="p-3">
-                          {product.image_url && (
-                            <div className="aspect-video rounded-md overflow-hidden mb-2 bg-muted">
-                              <img 
-                                src={product.image_url} 
-                                alt={product.name}
-                                className="w-full h-full object-cover"
-                              />
+                        <Card
+                          className="cursor-pointer hover:shadow-lg transition-all overflow-hidden border-2 border-transparent hover:border-primary/20"
+                          onClick={() => handleProductClick(product)}
+                        >
+                          <CardContent className="p-0">
+                            {product.image_url ? (
+                              <div className="aspect-[4/3] overflow-hidden bg-muted">
+                                <img 
+                                  src={product.image_url} 
+                                  alt={product.name}
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                            ) : (
+                              <div className="aspect-[4/3] bg-gradient-to-br from-muted to-muted/50 flex items-center justify-center">
+                                <ChefHat className="w-8 h-8 text-muted-foreground/50" />
+                              </div>
+                            )}
+                            <div className="p-3">
+                              <div className="font-medium text-sm truncate">{product.name}</div>
+                              <div className="text-primary font-bold mt-1">
+                                {formatCurrency(product.price)}
+                              </div>
                             </div>
-                          )}
-                          <div className="font-medium text-sm truncate">{product.name}</div>
-                          {product.description && (
-                            <p className="text-xs text-muted-foreground truncate mt-0.5">
-                              {product.description}
-                            </p>
-                          )}
-                          <div className="text-primary font-semibold text-sm mt-1">
-                            {formatCurrency(product.price)}
-                          </div>
-                        </CardContent>
-                      </Card>
+                          </CardContent>
+                        </Card>
+                      </motion.div>
                     ))}
                   </div>
                 </ScrollArea>
 
                 {/* Cart sidebar */}
-                {cart.length > 0 && (
-                  <div className="w-72 border-l bg-muted/30 flex flex-col">
-                    <div className="p-3 border-b font-semibold flex items-center gap-2">
-                      <ShoppingCart className="h-4 w-4" />
-                      Carrinho ({cart.length})
-                    </div>
-                    <ScrollArea className="flex-1">
-                      <div className="p-2 space-y-2">
-                        {cart.map((item, index) => (
-                          <Card key={index} className="p-2">
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex-1 min-w-0">
-                                <div className="text-sm font-medium truncate">{item.product.name}</div>
-                                {item.options.length > 0 && (
-                                  <p className="text-xs text-primary mt-0.5">
-                                    {item.options.map(o => o.name).join(', ')}
-                                  </p>
-                                )}
-                                {item.notes && (
-                                  <p className="text-xs text-muted-foreground truncate">
-                                    {item.notes}
-                                  </p>
-                                )}
-                              </div>
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-6 w-6 shrink-0"
-                                onClick={() => removeFromCart(index)}
-                              >
-                                <Trash2 className="h-3 w-3 text-destructive" />
-                              </Button>
-                            </div>
-                            <div className="flex items-center justify-between mt-2">
-                              <div className="flex items-center gap-1">
+                <AnimatePresence>
+                  {cart.length > 0 && (
+                    <motion.div
+                      initial={{ width: 0, opacity: 0 }}
+                      animate={{ width: 280, opacity: 1 }}
+                      exit={{ width: 0, opacity: 0 }}
+                      className="border-l bg-muted/30 flex flex-col overflow-hidden"
+                    >
+                      <div className="p-4 border-b font-semibold flex items-center gap-2 bg-primary/5">
+                        <ShoppingCart className="h-4 w-4 text-primary" />
+                        <span>Carrinho</span>
+                        <Badge className="ml-auto">{cart.length}</Badge>
+                      </div>
+                      <ScrollArea className="flex-1">
+                        <div className="p-3 space-y-2">
+                          {cart.map((item, index) => (
+                            <Card key={index} className="p-3">
+                              <div className="flex items-start justify-between gap-2 mb-2">
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-sm font-medium truncate">{item.product.name}</div>
+                                  {item.options.length > 0 && (
+                                    <p className="text-xs text-primary mt-0.5">
+                                      {item.options.map(o => o.name).join(', ')}
+                                    </p>
+                                  )}
+                                </div>
                                 <Button
                                   size="icon"
-                                  variant="outline"
-                                  className="h-6 w-6"
-                                  onClick={() => updateCartQuantity(index, -1)}
+                                  variant="ghost"
+                                  className="h-6 w-6 shrink-0 text-destructive hover:text-destructive"
+                                  onClick={() => removeFromCart(index)}
                                 >
-                                  <Minus className="h-3 w-3" />
-                                </Button>
-                                <span className="w-6 text-center text-sm">{item.quantity}</span>
-                                <Button
-                                  size="icon"
-                                  variant="outline"
-                                  className="h-6 w-6"
-                                  onClick={() => updateCartQuantity(index, 1)}
-                                >
-                                  <Plus className="h-3 w-3" />
+                                  <Trash2 className="h-3 w-3" />
                                 </Button>
                               </div>
-                              <span className="text-sm font-semibold">
-                                {formatCurrency(item.calculatedPrice * item.quantity)}
-                              </span>
-                            </div>
-                          </Card>
-                        ))}
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-1">
+                                  <Button
+                                    size="icon"
+                                    variant="outline"
+                                    className="h-7 w-7"
+                                    onClick={() => updateCartQuantity(index, -1)}
+                                  >
+                                    <Minus className="h-3 w-3" />
+                                  </Button>
+                                  <span className="w-8 text-center font-medium">{item.quantity}</span>
+                                  <Button
+                                    size="icon"
+                                    variant="outline"
+                                    className="h-7 w-7"
+                                    onClick={() => updateCartQuantity(index, 1)}
+                                  >
+                                    <Plus className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                                <span className="font-bold text-primary">
+                                  {formatCurrency(item.calculatedPrice * item.quantity)}
+                                </span>
+                              </div>
+                            </Card>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                      <div className="p-4 border-t bg-background/80 backdrop-blur space-y-3">
+                        <div className="flex justify-between items-center">
+                          <span className="font-semibold">Total:</span>
+                          <span className="text-xl font-bold text-primary">{formatCurrency(cartTotal)}</span>
+                        </div>
+                        <Button
+                          className="w-full h-11 font-semibold gap-2"
+                          onClick={handleAddItems}
+                          disabled={submitting || cart.length === 0}
+                        >
+                          {submitting ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Sparkles className="h-4 w-4" />
+                          )}
+                          Confirmar Itens
+                        </Button>
                       </div>
-                    </ScrollArea>
-                    <div className="p-3 border-t space-y-2">
-                      <div className="flex justify-between font-semibold">
-                        <span>Total:</span>
-                        <span>{formatCurrency(cartTotal)}</span>
-                      </div>
-                      <Button
-                        className="w-full"
-                        onClick={handleAddItems}
-                        disabled={submitting || cart.length === 0}
-                      >
-                        {submitting ? (
-                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                        ) : (
-                          <Check className="h-4 w-4 mr-2" />
-                        )}
-                        Confirmar Itens
-                      </Button>
-                    </div>
-                  </div>
-                )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             </TabsContent>
           </Tabs>
@@ -746,61 +834,95 @@ export function TableSessionModal({
         onAddToCart={handleAddToCart}
       />
 
-      {/* Payment method dialog */}
+      {/* Enhanced Payment Dialog */}
       <AlertDialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent className="max-w-md">
           <AlertDialogHeader>
-            <AlertDialogTitle>Fechar Conta - Mesa {table?.table_number}</AlertDialogTitle>
-            <AlertDialogDescription>
-              Total: <span className="font-bold text-foreground text-lg">{formatCurrency(totalSession)}</span>
-            </AlertDialogDescription>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center">
+                <Receipt className="h-6 w-6 text-primary-foreground" />
+              </div>
+              <div>
+                <AlertDialogTitle className="text-xl">Fechar Conta</AlertDialogTitle>
+                <AlertDialogDescription className="text-base">
+                  Mesa {table?.table_number}
+                </AlertDialogDescription>
+              </div>
+            </div>
           </AlertDialogHeader>
 
-          <div className="py-4">
-            <Label className="text-sm font-medium mb-3 block">Forma de Pagamento</Label>
-            <RadioGroup
-              value={selectedPaymentMethod}
-              onValueChange={setSelectedPaymentMethod}
-              className="grid grid-cols-2 gap-3"
-            >
-              {PAYMENT_METHODS.map((method) => {
-                const Icon = method.icon;
-                return (
-                  <div key={method.id}>
-                    <RadioGroupItem
-                      value={method.id}
-                      id={method.id}
-                      className="peer sr-only"
-                    />
-                    <Label
-                      htmlFor={method.id}
-                      className={cn(
-                        "flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors",
-                        "peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/5"
-                      )}
-                    >
-                      <Icon className="h-6 w-6" />
-                      <span className="text-sm font-medium">{method.label}</span>
-                    </Label>
-                  </div>
-                );
-              })}
-            </RadioGroup>
+          <div className="py-4 space-y-4">
+            {/* Total Display */}
+            <div className="text-center py-4 px-6 rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20">
+              <p className="text-sm text-muted-foreground mb-1">Total a Pagar</p>
+              <p className="text-4xl font-black text-primary">{formatCurrency(totalSession)}</p>
+            </div>
+
+            {/* Payment Methods */}
+            <div>
+              <Label className="text-sm font-medium mb-3 block">Forma de Pagamento</Label>
+              <RadioGroup
+                value={selectedPaymentMethod}
+                onValueChange={setSelectedPaymentMethod}
+                className="grid grid-cols-2 gap-3"
+              >
+                {PAYMENT_METHODS.map((method) => {
+                  const Icon = method.icon;
+                  const isSelected = selectedPaymentMethod === method.id;
+                  return (
+                    <div key={method.id}>
+                      <RadioGroupItem
+                        value={method.id}
+                        id={method.id}
+                        className="peer sr-only"
+                      />
+                      <Label
+                        htmlFor={method.id}
+                        className={cn(
+                          "flex flex-col items-center justify-center gap-2 rounded-xl border-2 p-4 cursor-pointer transition-all",
+                          "hover:bg-muted/50",
+                          isSelected 
+                            ? "border-primary bg-primary/5 shadow-md" 
+                            : "border-muted bg-background"
+                        )}
+                      >
+                        <div className={cn(
+                          "w-10 h-10 rounded-full flex items-center justify-center transition-colors",
+                          isSelected 
+                            ? `bg-gradient-to-br ${method.color} text-white` 
+                            : "bg-muted text-muted-foreground"
+                        )}>
+                          <Icon className="h-5 w-5" />
+                        </div>
+                        <span className={cn(
+                          "text-sm font-medium",
+                          isSelected && "text-primary"
+                        )}>
+                          {method.label}
+                        </span>
+                      </Label>
+                    </div>
+                  );
+                })}
+              </RadioGroup>
+            </div>
           </div>
 
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={closingSession}>Cancelar</AlertDialogCancel>
+          <AlertDialogFooter className="gap-2 sm:gap-2">
+            <AlertDialogCancel disabled={closingSession} className="flex-1">
+              Cancelar
+            </AlertDialogCancel>
             <AlertDialogAction 
               onClick={handleCloseSession}
               disabled={closingSession}
-              className="bg-primary"
+              className="flex-1 bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary gap-2"
             >
               {closingSession ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                <Check className="h-4 w-4 mr-2" />
+                <Check className="h-4 w-4" />
               )}
-              Confirmar Pagamento
+              Confirmar
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

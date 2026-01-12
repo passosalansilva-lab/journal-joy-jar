@@ -268,6 +268,7 @@ serve(async (req) => {
 
     // Create order
     const newOrderId = crypto.randomUUID();
+    const isTableOrder = !!orderData.table_session_id;
     const { error: orderError } = await supabaseClient.from("orders").insert({
       id: newOrderId,
       company_id: orderData.company_id,
@@ -286,6 +287,9 @@ serve(async (req) => {
       discount_amount: Number(orderData.discount_amount || 0),
       status: "pending",
       stripe_payment_intent_id: `mp_${String(actualPaymentId)}`,
+      // Table order fields
+      table_session_id: orderData.table_session_id || null,
+      source: orderData.source || (isTableOrder ? 'table' : 'online'),
     });
 
     if (orderError) {

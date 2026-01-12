@@ -1014,15 +1014,21 @@ export function CheckoutPage({ companyId, companyName, companySlug, companyPhone
             customerName: data.customerName,
             customerPhone: data.customerPhone || '',
             customerEmail: data.customerEmail?.toLowerCase().trim() || '',
-            deliveryAddressId: addressId,
-            deliveryFee,
+            deliveryAddressId: isTableOrder ? null : addressId,
+            deliveryFee: effectiveDeliveryFee,
             subtotal,
             total,
             couponId: appliedCoupon?.id || null,
             discountAmount,
-            notes: data.notes || null,
+            notes: tableNumber 
+              ? `🍽️ MESA ${tableNumber}${data.notes ? ` | ${data.notes}` : ''}`
+              : (data.notes || null),
             needsChange: false,
             changeFor: null,
+            // Table order fields
+            tableSessionId: tableSessionId || null,
+            tableNumber: tableNumber || null,
+            source: isTableOrder ? 'table' : 'online',
           };
 
           // Usar o gateway correto

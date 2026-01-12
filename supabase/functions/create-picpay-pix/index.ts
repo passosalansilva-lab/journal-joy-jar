@@ -33,6 +33,10 @@ interface PaymentRequest {
   notes?: string;
   needsChange?: boolean;
   changeFor?: number;
+  // Table order fields
+  tableSessionId?: string;
+  tableNumber?: number;
+  source?: string;
 }
 
 // PicPay Payment Link API (produção)
@@ -165,6 +169,10 @@ serve(async (req) => {
       change_for: body.changeFor,
       payment_method: "picpay",
       created_at: new Date().toISOString(),
+      // Table order fields
+      table_session_id: body.tableSessionId || null,
+      table_number: body.tableNumber || null,
+      source: body.source || 'online',
     };
 
     const { data: pendingOrder, error: pendingError } = await supabaseClient

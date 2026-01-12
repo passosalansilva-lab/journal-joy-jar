@@ -1146,6 +1146,7 @@ function PublicMenuContent() {
   }
 
   if (checkoutMode) {
+    console.log('[PublicMenu] Rendering checkout with:', { tableNumber, tableSessionId, tableId });
     return (
       <>
         {paymentErrorMessage && (

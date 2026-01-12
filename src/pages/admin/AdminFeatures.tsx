@@ -328,6 +328,42 @@ export default function AdminFeatures() {
     }
   }
 
+  async function toggleAllFeaturesForPlan(planId: string, selectAll: boolean) {
+    try {
+      if (selectAll) {
+        // Adicionar todas as features que ainda não estão vinculadas
+        const existingFeatureIds = planFeatures
+          .filter(pf => pf.plan_id === planId)
+          .map(pf => pf.feature_id);
+        
+        const featuresToAdd = features
+          .filter(f => !existingFeatureIds.includes(f.id))
+          .map(f => ({ plan_id: planId, feature_id: f.id }));
+
+        if (featuresToAdd.length > 0) {
+          const { error } = await supabase
+            .from('plan_features')
+            .insert(featuresToAdd);
+          if (error) throw error;
+        }
+        toast.success('Todas as funcionalidades foram marcadas');
+      } else {
+        // Remover todas as features do plano
+        const { error } = await supabase
+          .from('plan_features')
+          .delete()
+          .eq('plan_id', planId);
+        if (error) throw error;
+        toast.success('Todas as funcionalidades foram desmarcadas');
+      }
+
+      loadData();
+    } catch (error: any) {
+      console.error('Error toggling all features:', error);
+      toast.error(error.message || 'Erro ao atualizar');
+    }
+  }
+
   function resetFeatureForm() {
     setEditingFeature(null);
     setFeatureForm({
@@ -713,11 +749,37 @@ export default function AdminFeatures() {
                     <thead>
                       <tr className="border-b">
                         <th className="text-left p-3">Funcionalidade</th>
-                        {plans.map(plan => (
-                          <th key={plan.id} className="text-center p-3">
-                            {plan.name}
-                          </th>
-                        ))}
+                        {plans.map(plan => {
+                          const linkedCount = planFeatures.filter(pf => pf.plan_id === plan.id).length;
+                          const allLinked = linkedCount === features.length;
+                          return (
+                            <th key={plan.id} className="text-center p-3">
+                              <div className="flex flex-col items-center gap-1">
+                                <span>{plan.name}</span>
+                                <div className="flex gap-1">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 text-xs px-2"
+                                    onClick={() => toggleAllFeaturesForPlan(plan.id, true)}
+                                    disabled={allLinked}
+                                  >
+                                    Todos
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 text-xs px-2"
+                                    onClick={() => toggleAllFeaturesForPlan(plan.id, false)}
+                                    disabled={linkedCount === 0}
+                                  >
+                                    Nenhum
+                                  </Button>
+                                </div>
+                              </div>
+                            </th>
+                          );
+                        })}
                       </tr>
                     </thead>
                     <tbody>

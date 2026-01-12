@@ -265,25 +265,35 @@ export default function KitchenDisplay() {
     return diffMinutes > 15;
   };
 
-  // Format options for display
-  const formatOptions = (options: any): string[] => {
+  // Format options for display - with grouping
+  const formatOptions = (options: any): { groupName: string; items: string[] }[] => {
     if (!options) return [];
-    const formatted: string[] = [];
+    const grouped: Record<string, string[]> = {};
 
     if (Array.isArray(options)) {
       options.forEach((opt: any) => {
+        // Formato antigo: { groupName, selectedOptions }
         if (opt.groupName && opt.selectedOptions) {
+          if (!grouped[opt.groupName]) grouped[opt.groupName] = [];
           opt.selectedOptions.forEach((sel: any) => {
-            formatted.push(`${opt.groupName}: ${sel.name}`);
+            grouped[opt.groupName].push(sel.name);
           });
         }
+        // Formato novo: { name, priceModifier, groupName? }
+        else if (opt.name) {
+          const group = opt.groupName || 'Adicionais';
+          if (!grouped[group]) grouped[group] = [];
+          grouped[group].push(opt.name);
+        }
+        // Pizza meio a meio
         if (opt.half_half_flavors) {
-          formatted.push(`½ ${opt.half_half_flavors.join(" + ½ ")}`);
+          if (!grouped['Pizza']) grouped['Pizza'] = [];
+          grouped['Pizza'].push(`½ ${opt.half_half_flavors.join(" + ½ ")}`);
         }
       });
     }
 
-    return formatted;
+    return Object.entries(grouped).map(([groupName, items]) => ({ groupName, items }));
   };
 
   const confirmedOrders = orders.filter((o) => o.status === "confirmed");
@@ -533,10 +543,11 @@ export default function KitchenDisplay() {
                                   </span>
                                   <div className="flex-1">
                                     <p className="font-medium">{item.product_name}</p>
-                                    {formatOptions(item.options).map((opt, i) => (
-                                      <p key={i} className="text-xs text-muted-foreground">
-                                        • {opt}
-                                      </p>
+                                    {formatOptions(item.options).map((group, i) => (
+                                      <div key={i} className="text-xs text-muted-foreground">
+                                        <span className="font-medium">{group.groupName}:</span>{' '}
+                                        {group.items.join(', ')}
+                                      </div>
                                     ))}
                                     {item.notes && (
                                       <p className="text-xs text-orange-600 font-medium">
@@ -645,10 +656,11 @@ export default function KitchenDisplay() {
                                   </span>
                                   <div className="flex-1">
                                     <p className="font-medium">{item.product_name}</p>
-                                    {formatOptions(item.options).map((opt, i) => (
-                                      <p key={i} className="text-xs text-muted-foreground">
-                                        • {opt}
-                                      </p>
+                                    {formatOptions(item.options).map((group, i) => (
+                                      <div key={i} className="text-xs text-muted-foreground">
+                                        <span className="font-medium">{group.groupName}:</span>{' '}
+                                        {group.items.join(', ')}
+                                      </div>
                                     ))}
                                     {item.notes && (
                                       <p className="text-xs text-orange-600 font-medium">

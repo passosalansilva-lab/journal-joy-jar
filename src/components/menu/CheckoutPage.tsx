@@ -1348,18 +1348,28 @@ export function CheckoutPage({ companyId, companyName, companySlug, companyPhone
       let message = `*PEDIDO #${orderCode}*\n\n`;
       message += `*Itens:*\n`;
       orderItems.forEach(item => {
-        message += `• ${item.quantity}x ${item.productName}`;
+        message += `- ${item.quantity}x ${item.productName}\n`;
+        
+        // Agrupar opções por groupName
         if (item.options.length > 0) {
-          message += ` (${item.options.map(o => o.name).join(', ')})`;
+          const grouped = item.options.reduce((acc, o) => {
+            const group = o.groupName || 'Adicionais';
+            if (!acc[group]) acc[group] = [];
+            acc[group].push(o.name);
+            return acc;
+          }, {} as Record<string, string[]>);
+          
+          Object.entries(grouped).forEach(([groupName, names]) => {
+            message += `  ${groupName}: ${names.join(', ')}\n`;
+          });
         }
+        
         if (item.notes) {
-          message += ` - Obs: ${item.notes}`;
+          message += `  Obs: ${item.notes}\n`;
         }
-        message += `\n`;
       });
       message += `\n*Total: R$ ${(orderSummary?.total ?? 0).toFixed(2)}*\n`;
       message += `\nAcompanhe seu pedido: ${trackingUrl}`;
-      
       
       return encodeURIComponent(message);
     };
@@ -1413,9 +1423,20 @@ export function CheckoutPage({ companyId, companyName, companySlug, companyPhone
                   </div>
                   {item.options.length > 0 && (
                     <div className="text-xs text-muted-foreground ml-4 mt-0.5 space-y-0.5">
-                      {item.options.map((o, idx) => (
-                        <p key={idx}>- {o.name}</p>
-                      ))}
+                      {(() => {
+                        const grouped = item.options.reduce((acc, o) => {
+                          const group = o.groupName || 'Adicionais';
+                          if (!acc[group]) acc[group] = [];
+                          acc[group].push(o.name);
+                          return acc;
+                        }, {} as Record<string, string[]>);
+                        
+                        return Object.entries(grouped).map(([groupName, names], idx) => (
+                          <p key={idx}>
+                            <span className="font-medium">{groupName}:</span> {names.join(', ')}
+                          </p>
+                        ));
+                      })()}
                     </div>
                   )}
                   {item.notes && (

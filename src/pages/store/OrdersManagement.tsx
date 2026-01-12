@@ -898,25 +898,25 @@ export default function OrdersManagement() {
     const statusMessage = statusMessages[status];
     
     const messageLines = [
-      `Olá, ${order.customer_name}! 👋`,
+      `Ola, ${order.customer_name}!`,
       '',
-      `*Atualização do pedido #${order.id.slice(0, 8)}*`,
+      `*Atualizacao do pedido #${order.id.slice(0, 8)}*`,
       '',
-      `📦 *Status:* ${statusLabel}`,
+      `*Status:* ${statusLabel}`,
       '',
       statusMessage,
       '',
-      `💰 *Total:* ${Number(order.total).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`,
+      `*Total:* ${Number(order.total).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`,
     ];
 
     if (status === 'out_for_delivery') {
       messageLines.push('');
-      messageLines.push('Fique atento! O entregador está a caminho.');
+      messageLines.push('Fique atento! O entregador esta a caminho.');
     }
 
     if (status === 'delivered') {
       messageLines.push('');
-      messageLines.push('Esperamos que tenha gostado! Volte sempre! 💜');
+      messageLines.push('Esperamos que tenha gostado! Volte sempre!');
     }
 
     messageLines.push('');

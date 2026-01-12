@@ -179,29 +179,44 @@ export function TableSessionModal({
     setLoading(true);
 
     try {
+      console.log('[TableSessionModal] Loading data for session:', session.id);
+      
       // Load orders for this session (ignore cancelled)
       const { data: ordersData, error: ordersError } = await supabase
         .from('orders')
-        .select('id, total, status, created_at, payment_method, payment_status')
+        .select('id, total, status, created_at, payment_method, payment_status, table_session_id, source')
         .eq('table_session_id', session.id)
         .neq('status', 'cancelled')
         .order('created_at');
 
-      if (ordersError) throw ordersError;
+      if (ordersError) {
+        console.error('[TableSessionModal] Error loading orders:', ordersError);
+        throw ordersError;
+      }
+      
+      console.log('[TableSessionModal] Orders found:', ordersData?.length || 0, ordersData);
       setOrders(ordersData || []);
 
       // Load all items from all orders
       if (ordersData && ordersData.length > 0) {
         const orderIds = ordersData.map((o) => o.id);
+        console.log('[TableSessionModal] Loading items for order IDs:', orderIds);
+        
         const { data: itemsData, error: itemsError } = await supabase
           .from('order_items')
           .select('*')
           .in('order_id', orderIds)
           .order('created_at');
 
-        if (itemsError) throw itemsError;
+        if (itemsError) {
+          console.error('[TableSessionModal] Error loading items:', itemsError);
+          throw itemsError;
+        }
+        
+        console.log('[TableSessionModal] Items found:', itemsData?.length || 0, itemsData);
         setAllItems(itemsData || []);
       } else {
+        console.log('[TableSessionModal] No orders found, clearing items');
         setAllItems([]);
       }
     } catch (error: any) {

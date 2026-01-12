@@ -1185,32 +1185,42 @@ export function CheckoutPage({ companyId, companyName, companySlug, companyPhone
         });
       }
 
+      // Always log the full order data being inserted
+      const orderInsertData = {
+        id: newOrderId,
+        company_id: companyId,
+        customer_id: customerId,
+        customer_name: data.customerName,
+        customer_phone: data.customerPhone || '',
+        customer_email: data.customerEmail.toLowerCase().trim(),
+        delivery_address_id: isTableOrder ? null : addressId,
+        payment_method: data.paymentMethod as any,
+        subtotal,
+        delivery_fee: effectiveDeliveryFee,
+        total,
+        notes: orderNotes,
+        needs_change: data.paymentMethod === 'cash' ? data.needsChange : false,
+        change_for: data.paymentMethod === 'cash' && data.needsChange ? data.changeFor : null,
+        coupon_id: appliedCoupon?.id || null,
+        referral_code_id: referralDiscount?.referralCodeId || null,
+        discount_amount: discountAmount,
+        estimated_delivery_time: estimatedDeliveryTime.toISOString(),
+        source: isTableOrder ? 'table' : 'online',
+        table_session_id: tableSessionId || null,
+      };
+      
+      console.log('[CheckoutPage] Inserting order with data:', orderInsertData);
+
       const { error: orderError } = await supabase
         .from('orders')
-        .insert({
-          id: newOrderId,
-          company_id: companyId,
-          customer_id: customerId,
-          customer_name: data.customerName,
-          customer_phone: data.customerPhone || '',
-          customer_email: data.customerEmail.toLowerCase().trim(),
-          delivery_address_id: isTableOrder ? null : addressId,
-          payment_method: data.paymentMethod as any,
-          subtotal,
-          delivery_fee: effectiveDeliveryFee,
-          total,
-          notes: orderNotes,
-          needs_change: data.paymentMethod === 'cash' ? data.needsChange : false,
-          change_for: data.paymentMethod === 'cash' && data.needsChange ? data.changeFor : null,
-          coupon_id: appliedCoupon?.id || null,
-          referral_code_id: referralDiscount?.referralCodeId || null,
-          discount_amount: discountAmount,
-          estimated_delivery_time: estimatedDeliveryTime.toISOString(),
-          source: isTableOrder ? 'table' : 'online',
-          table_session_id: tableSessionId || null,
-        });
+        .insert(orderInsertData);
 
-      if (orderError) throw orderError;
+      if (orderError) {
+        console.error('[CheckoutPage] Order insert error:', orderError);
+        throw orderError;
+      }
+      
+      console.log('[CheckoutPage] Order created successfully:', newOrderId);
 
       // Insert order items immediately after order creation
       const { error: itemsError } = await supabase

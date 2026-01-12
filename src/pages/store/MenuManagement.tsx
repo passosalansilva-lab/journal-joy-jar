@@ -14,7 +14,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Plus, Loader2, GripVertical, Trash2, ChevronDown, Settings2, Link2, Share2, Clock, FileText, X, Upload, Eye, TrendingUp, ArrowUpDown } from 'lucide-react';
+import { Plus, Loader2, GripVertical, Trash2, ChevronDown, Settings2, Link2, Share2, Clock, FileText, X, Upload, Eye, TrendingUp, ArrowUpDown, Pencil } from 'lucide-react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -501,45 +501,62 @@ export default function MenuManagement() {
     name: string;
     description: string;
     type: 'normal' | 'pizza' | 'acai' | 'combos';
+    id?: string;
   }) => {
     if (!companyId || !values.name.trim()) return;
 
     try {
       setSavingCategory(true);
-      const payload = {
-        company_id: companyId,
-        name: values.name.trim(),
-        description: values.description.trim() || null,
-        is_active: true,
-        category_type: values.type === 'combos' ? 'combos' : 'products',
-      };
-
-      const { data, error } = await supabase
-        .from('categories')
-        .insert(payload)
-        .select('*')
-        .single();
-      if (error) throw error;
-
-      if (values.type === 'pizza') {
-        const { error: pizzaError } = await supabase.from('pizza_categories').insert({
+      
+      // Check if we're editing an existing category
+      if (values.id) {
+        const { error } = await supabase
+          .from('categories')
+          .update({
+            name: values.name.trim(),
+            description: values.description.trim() || null,
+          })
+          .eq('id', values.id);
+        if (error) throw error;
+        toast({ title: 'Categoria atualizada com sucesso' });
+      } else {
+        // Create new category
+        const payload = {
           company_id: companyId,
-          category_id: data.id,
-        });
-        if (pizzaError) throw pizzaError;
-      }
+          name: values.name.trim(),
+          description: values.description.trim() || null,
+          is_active: true,
+          category_type: values.type === 'combos' ? 'combos' : 'products',
+        };
 
-      if (values.type === 'acai') {
-        const { error: acaiError } = await supabase.from('acai_categories').insert({
-          company_id: companyId,
-          category_id: data.id,
-        });
-        if (acaiError) throw acaiError;
-      }
+        const { data, error } = await supabase
+          .from('categories')
+          .insert(payload)
+          .select('*')
+          .single();
+        if (error) throw error;
 
-      toast({ title: 'Categoria criada com sucesso' });
-      clearCategoryDraft();
-      setPendingCategoryDraft(null); // Clear banner state as well
+        if (values.type === 'pizza') {
+          const { error: pizzaError } = await supabase.from('pizza_categories').insert({
+            company_id: companyId,
+            category_id: data.id,
+          });
+          if (pizzaError) throw pizzaError;
+        }
+
+        if (values.type === 'acai') {
+          const { error: acaiError } = await supabase.from('acai_categories').insert({
+            company_id: companyId,
+            category_id: data.id,
+          });
+          if (acaiError) throw acaiError;
+        }
+
+        toast({ title: 'Categoria criada com sucesso' });
+        clearCategoryDraft();
+        setPendingCategoryDraft(null);
+      }
+      
       setCategoryDialog({ open: false, category: null });
       setCategoryType('normal');
       await loadData();
@@ -1040,6 +1057,24 @@ export default function MenuManagement() {
                               </button>
                             </div>
                             <div className="flex items-center gap-2">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={() => {
+                                  // Determine category type for editing
+                                  let type: 'normal' | 'pizza' | 'acai' | 'combos' = 'normal';
+                                  if (pizzaCategoryIds.includes(category.id)) type = 'pizza';
+                                  else if (acaiCategoryIds.includes(category.id)) type = 'acai';
+                                  else if (category.category_type === 'combos') type = 'combos';
+                                  
+                                  setCategoryType(type);
+                                  setCategoryDialog({ open: true, category });
+                                }}
+                                title="Editar categoria"
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
                               {acaiCategoryIds.includes(category.id) && (
                                 <Button
                                   variant="outline"
@@ -1189,7 +1224,8 @@ export default function MenuManagement() {
             </DialogHeader>
 
             <div className="space-y-4 mt-2">
-              {!categoryDialog.category && (
+              {/* Only show type selector for new categories */}
+              {!categoryDialog.category?.id && (
                 <div className="space-y-2">
                   <p className="text-sm font-medium">Tipo de categoria</p>
                   <p className="text-xs text-muted-foreground">
@@ -1293,6 +1329,7 @@ export default function MenuManagement() {
               <Button
                 onClick={() =>
                   saveCategory({
+                    id: categoryDialog.category?.id || undefined,
                     name: categoryDialog.category?.name || '',
                     description: categoryDialog.category?.description || '',
                     type: categoryType,

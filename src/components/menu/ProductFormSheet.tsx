@@ -75,6 +75,7 @@ interface OptionItem {
   is_available: boolean;
   sort_order: number;
   group_id: string | null;
+  image_url?: string | null;
 }
 
 interface OptionGroup {
@@ -106,32 +107,98 @@ const SELECTION_TYPES = [
   { value: 'multiple', label: 'Múltipla escolha', description: 'Cliente pode escolher várias opções' },
 ];
 
-// Sortable Group Card Component
+// Inline option form state type
+interface InlineOptionForm {
+  name: string;
+  description: string;
+  price_modifier: string;
+  image_url: string | null;
+}
+
+// Sortable Group Card Component with inline option adding
 function SortableGroupCard({
   group,
   expanded,
   toggleExpanded,
   onEditGroup,
   onDeleteGroup,
-  onAddOption,
+  onSaveOption,
   onEditOption,
   onDeleteOption,
+  companyId,
+  savingOptionId,
 }: {
   group: OptionGroup;
   expanded: boolean;
   toggleExpanded: (id: string) => void;
   onEditGroup: (group: OptionGroup) => void;
   onDeleteGroup: (id: string) => void;
-  onAddOption: (groupId: string) => void;
+  onSaveOption: (groupId: string, option: InlineOptionForm, existingId?: string) => Promise<void>;
   onEditOption: (groupId: string, option: OptionItem) => void;
   onDeleteOption: (optionId: string) => void;
+  companyId: string;
+  savingOptionId: string | null;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: group.id });
+  const [showInlineForm, setShowInlineForm] = React.useState(false);
+  const [inlineForm, setInlineForm] = React.useState<InlineOptionForm>({
+    name: '',
+    description: '',
+    price_modifier: '',
+    image_url: null,
+  });
+  const [editingOptionId, setEditingOptionId] = React.useState<string | null>(null);
+  const inputRef = React.useRef<HTMLInputElement>(null);
 
   const style: React.CSSProperties = {
     transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
     transition,
   };
+
+  const handleAddClick = () => {
+    setShowInlineForm(true);
+    setEditingOptionId(null);
+    setInlineForm({ name: '', description: '', price_modifier: '', image_url: null });
+    setTimeout(() => inputRef.current?.focus(), 50);
+  };
+
+  const handleEditClick = (option: OptionItem) => {
+    setShowInlineForm(true);
+    setEditingOptionId(option.id);
+    setInlineForm({
+      name: option.name,
+      description: option.description || '',
+      price_modifier: String(option.price_modifier || 0),
+      image_url: option.image_url || null,
+    });
+    setTimeout(() => inputRef.current?.focus(), 50);
+  };
+
+  const handleCancelInline = () => {
+    setShowInlineForm(false);
+    setEditingOptionId(null);
+    setInlineForm({ name: '', description: '', price_modifier: '', image_url: null });
+  };
+
+  const handleSaveInline = async () => {
+    if (!inlineForm.name.trim()) return;
+    await onSaveOption(group.id, inlineForm, editingOptionId || undefined);
+    // Reset form but keep it open for quick adding
+    setInlineForm({ name: '', description: '', price_modifier: '', image_url: null });
+    setEditingOptionId(null);
+    setTimeout(() => inputRef.current?.focus(), 50);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSaveInline();
+    } else if (e.key === 'Escape') {
+      handleCancelInline();
+    }
+  };
+
+  const isSaving = savingOptionId === (editingOptionId || 'new-' + group.id);
 
   return (
     <Card ref={setNodeRef} style={style} className="overflow-hidden">
@@ -194,7 +261,7 @@ function SortableGroupCard({
 
         <CollapsibleContent>
           <CardContent className="p-3 pt-0 space-y-2">
-            {group.options.length === 0 ? (
+            {group.options.length === 0 && !showInlineForm ? (
               <p className="text-sm text-muted-foreground py-2">Nenhuma opção ainda. Adicione abaixo.</p>
             ) : (
               group.options.map((option) => (
@@ -204,6 +271,13 @@ function SortableGroupCard({
                 >
                   <div className="flex items-center gap-2">
                     <GripVertical className="h-3 w-3 text-muted-foreground" />
+                    {option.image_url && (
+                      <img 
+                        src={option.image_url} 
+                        alt={option.name}
+                        className="h-8 w-8 rounded object-cover"
+                      />
+                    )}
                     <div>
                       <p className="text-sm font-medium">{option.name}</p>
                       {option.description && (
@@ -226,7 +300,11 @@ function SortableGroupCard({
                         ? `R$ ${Number(option.price_modifier).toFixed(2)}`
                         : 'Incluso'}
                     </span>
-                    <Button variant="ghost" size="sm" onClick={() => onEditOption(group.id, option)}>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => handleEditClick(option)}
+                    >
                       Editar
                     </Button>
                     <Button
@@ -242,15 +320,99 @@ function SortableGroupCard({
               ))
             )}
 
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full border-dashed mt-2"
-              onClick={() => onAddOption(group.id)}
-            >
-              <Plus className="h-3 w-3 mr-1" />
-              Adicionar opção
-            </Button>
+            {/* Inline form for quick option adding/editing */}
+            {showInlineForm && (
+              <div className="p-3 rounded-md border-2 border-primary/20 bg-accent/30 space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-[1fr,auto] gap-2">
+                  <div className="space-y-2">
+                    <Input
+                      ref={inputRef}
+                      value={inlineForm.name}
+                      onChange={(e) => setInlineForm(prev => ({ ...prev, name: e.target.value }))}
+                      placeholder="Nome da opção (ex: Bacon, Queijo extra)"
+                      onKeyDown={handleKeyDown}
+                      className="h-9"
+                    />
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input
+                        value={inlineForm.description}
+                        onChange={(e) => setInlineForm(prev => ({ ...prev, description: e.target.value }))}
+                        placeholder="Descrição (opcional)"
+                        onKeyDown={handleKeyDown}
+                        className="h-9"
+                      />
+                      <CurrencyInput
+                        value={Number(inlineForm.price_modifier || 0)}
+                        onChange={(value) => setInlineForm(prev => ({ ...prev, price_modifier: String(value || 0) }))}
+                        placeholder="Preço adicional"
+                      />
+                    </div>
+                  </div>
+                  {/* Image upload for option */}
+                  <div className="flex items-center gap-2">
+                    {inlineForm.image_url ? (
+                      <div className="relative">
+                        <img 
+                          src={inlineForm.image_url} 
+                          alt="Preview"
+                          className="h-16 w-16 rounded object-cover border"
+                        />
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="icon"
+                          className="absolute -top-2 -right-2 h-5 w-5"
+                          onClick={() => setInlineForm(prev => ({ ...prev, image_url: null }))}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <ImageUpload
+                        value={inlineForm.image_url}
+                        onChange={(url) => setInlineForm(prev => ({ ...prev, image_url: url }))}
+                        folder={companyId}
+                        aspectRatio="square"
+                      />
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-muted-foreground">
+                    Pressione Enter para salvar, Esc para cancelar
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleCancelInline}
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={handleSaveInline}
+                      disabled={!inlineForm.name.trim() || isSaving}
+                    >
+                      {isSaving && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
+                      {editingOptionId ? 'Atualizar' : 'Adicionar'}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {!showInlineForm && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full border-dashed mt-2"
+                onClick={handleAddClick}
+              >
+                <Plus className="h-3 w-3 mr-1" />
+                Adicionar opção
+              </Button>
+            )}
           </CardContent>
         </CollapsibleContent>
       </Collapsible>
@@ -311,7 +473,7 @@ export function ProductFormSheet({
     extra_unit_price: '0',
   });
 
-  // Option modal
+  // Option modal (kept for backwards compatibility, but inline form is preferred)
   const [optionModal, setOptionModal] = useState<{ open: boolean; groupId: string; option: OptionItem | null }>({
     open: false,
     groupId: '',
@@ -322,6 +484,7 @@ export function ProductFormSheet({
     description: '',
     price_modifier: '',
   });
+  const [savingOptionId, setSavingOptionId] = useState<string | null>(null);
 
   // Save draft when form changes (only for new products)
   const saveDraftIfMeaningful = useCallback(() => {
@@ -737,6 +900,74 @@ export function ProductFormSheet({
     }
   };
 
+  // Inline option save handler (no sheet, no page refresh)
+  const handleInlineSaveOption = async (
+    groupId: string, 
+    optionData: { name: string; description: string; price_modifier: string; image_url: string | null },
+    existingId?: string
+  ) => {
+    if (!currentProductId || !optionData.name.trim()) return;
+
+    const savingId = existingId || 'new-' + groupId;
+    setSavingOptionId(savingId);
+    
+    try {
+      const group = groups.find((g) => g.id === groupId);
+      const payload = {
+        product_id: currentProductId,
+        group_id: groupId,
+        name: optionData.name.trim(),
+        description: optionData.description.trim() || null,
+        price_modifier: Number(optionData.price_modifier || 0),
+        is_required: false,
+        is_available: true,
+        sort_order: group ? group.options.length : 0,
+        image_url: optionData.image_url,
+      };
+
+      if (existingId) {
+        const { data, error } = await supabase
+          .from('product_options')
+          .update(payload)
+          .eq('id', existingId)
+          .select('*')
+          .single();
+        if (error) throw error;
+        
+        // Update local state without full reload
+        setGroups(prev => prev.map(g => 
+          g.id === groupId 
+            ? { ...g, options: g.options.map(o => o.id === existingId ? { ...o, ...data } : o) }
+            : g
+        ));
+        toast({ title: 'Opção atualizada' });
+      } else {
+        const { data, error } = await supabase
+          .from('product_options')
+          .insert(payload)
+          .select('*')
+          .single();
+        if (error) throw error;
+        
+        // Update local state without full reload
+        setGroups(prev => prev.map(g => 
+          g.id === groupId 
+            ? { ...g, options: [...g.options, data as OptionItem] }
+            : g
+        ));
+        toast({ title: 'Opção adicionada' });
+      }
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao salvar opção',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setSavingOptionId(null);
+    }
+  };
+
   const toggleExpanded = (id: string) => {
     setExpandedGroups((prev) => {
       const next = new Set(prev);
@@ -995,9 +1226,11 @@ export function ProductFormSheet({
                               toggleExpanded={toggleExpanded}
                               onEditGroup={openEditGroupModal}
                               onDeleteGroup={handleDeleteGroup}
-                              onAddOption={openNewOptionModal}
+                              onSaveOption={handleInlineSaveOption}
                               onEditOption={openEditOptionModal}
                               onDeleteOption={handleDeleteOption}
+                              companyId={companyId}
+                              savingOptionId={savingOptionId}
                             />
                           ))}
                         </div>

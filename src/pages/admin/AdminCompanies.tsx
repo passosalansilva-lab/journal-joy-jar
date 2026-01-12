@@ -197,13 +197,13 @@ export default function AdminCompanies() {
 
       if (error) throw error;
 
-      // Send email notification if bonus changed
-      if (company && bonusEditing.value !== previousBonus && bonusEditing.value > 0) {
+      // Send email notification if bonus changed (increase, decrease or removal)
+      if (company && bonusEditing.value !== previousBonus) {
         const planLimit = getPlanLimit(company.subscription_plan);
         const newTotalLimit = planLimit + bonusEditing.value;
         
         try {
-          await supabase.functions.invoke('send-bonus-email', {
+          const { error: emailError } = await supabase.functions.invoke('send-bonus-email', {
             body: {
               companyId: bonusEditing.companyId,
               ownerId: company.owner_id,
@@ -212,6 +212,10 @@ export default function AdminCompanies() {
               newTotalLimit: newTotalLimit,
             },
           });
+          
+          if (emailError) {
+            console.error('Error sending bonus email:', emailError);
+          }
         } catch (emailError) {
           console.error('Error sending bonus email:', emailError);
           // Don't fail the whole operation if email fails

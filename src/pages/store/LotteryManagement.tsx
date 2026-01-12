@@ -51,6 +51,9 @@ interface TicketHolder {
   customer_name: string;
   customer_phone: string;
   total_tickets: number;
+  total_spent: number; // Total gasto pelo cliente
+  weighted_score: number; // Pontuação ponderada (tickets * multiplicador)
+  chance_percent: number; // Probabilidade de ganhar em %
 }
 
 export default function LotteryManagement() {
@@ -136,7 +139,7 @@ export default function LotteryManagement() {
       if (ticketsError) throw ticketsError;
 
       // Aggregate tickets by user_id (preferred) or customer_id (fallback)
-      const holdersMap = new Map<string, TicketHolder>();
+      const holdersMap = new Map<string, Omit<TicketHolder, 'weighted_score' | 'chance_percent'>>();
       let total = 0;
 
       ticketsData?.forEach((ticket: any) => {
@@ -152,12 +155,65 @@ export default function LotteryManagement() {
             customer_name: ticket.customers.name,
             customer_phone: ticket.customers.phone,
             total_tickets: ticket.quantity,
+            total_spent: 0,
           });
         }
         total += ticket.quantity;
       });
 
-      setTicketHolders(Array.from(holdersMap.values()).sort((a, b) => b.total_tickets - a.total_tickets));
+      // Buscar total gasto por cada cliente (pedidos completados)
+      const customerIds = Array.from(holdersMap.values()).map(h => h.customer_id);
+      
+      if (customerIds.length > 0) {
+        const { data: ordersData, error: ordersError } = await supabase
+          .from('orders')
+          .select('customer_id, total')
+          .eq('company_id', company.id)
+          .in('customer_id', customerIds)
+          .in('status', ['delivered', 'ready']);
+
+        if (!ordersError && ordersData) {
+          // Somar totais por customer_id
+          const spentByCustomer = new Map<string, number>();
+          ordersData.forEach((order: any) => {
+            const current = spentByCustomer.get(order.customer_id) || 0;
+            spentByCustomer.set(order.customer_id, current + (order.total || 0));
+          });
+
+          // Atualizar total_spent nos holders
+          holdersMap.forEach((holder) => {
+            holder.total_spent = spentByCustomer.get(holder.customer_id) || 0;
+          });
+        }
+      }
+
+      // Calcular pesos ponderados: tickets * (1 + bônus por valor gasto)
+      // Bônus: a cada R$100 gastos = +10% de multiplicador (0.1)
+      const BONUS_PER_100_REAIS = 0.1; // 10% de bônus a cada R$100
+
+      const holdersWithWeights: TicketHolder[] = Array.from(holdersMap.values()).map(holder => {
+        const spentBonus = (holder.total_spent / 100) * BONUS_PER_100_REAIS;
+        const multiplier = 1 + spentBonus;
+        const weighted_score = holder.total_tickets * multiplier;
+        return {
+          ...holder,
+          weighted_score,
+          chance_percent: 0, // Será calculado depois
+        };
+      });
+
+      // Calcular probabilidade % de cada participante
+      const totalWeightedScore = holdersWithWeights.reduce((sum, h) => sum + h.weighted_score, 0);
+      holdersWithWeights.forEach(holder => {
+        holder.chance_percent = totalWeightedScore > 0 
+          ? (holder.weighted_score / totalWeightedScore) * 100 
+          : 0;
+      });
+
+      // Ordenar por probabilidade (maior primeiro)
+      holdersWithWeights.sort((a, b) => b.weighted_score - a.weighted_score);
+
+      setTicketHolders(holdersWithWeights);
       setTotalActiveTickets(total);
 
       // Load past draws
@@ -259,13 +315,13 @@ export default function LotteryManagement() {
 
     setDrawing(true);
     try {
-      // Weighted random selection based on ticket count
-      const totalTickets = ticketHolders.reduce((sum, h) => sum + h.total_tickets, 0);
-      let random = Math.random() * totalTickets;
+      // Seleção aleatória ponderada baseada no weighted_score (tickets * multiplicador por gastos)
+      const totalWeightedScore = ticketHolders.reduce((sum, h) => sum + h.weighted_score, 0);
+      let random = Math.random() * totalWeightedScore;
       let winner: TicketHolder | null = null;
 
       for (const holder of ticketHolders) {
-        random -= holder.total_tickets;
+        random -= holder.weighted_score;
         if (random <= 0) {
           winner = holder;
           break;
@@ -275,6 +331,8 @@ export default function LotteryManagement() {
       if (!winner) {
         winner = ticketHolders[0];
       }
+
+      const totalTickets = ticketHolders.reduce((sum, h) => sum + h.total_tickets, 0);
 
       // Record the draw
       const { data: drawData, error: drawError } = await supabase
@@ -562,6 +620,9 @@ export default function LotteryManagement() {
                   <CardDescription>
                     Clientes com tickets para o próximo sorteio
                   </CardDescription>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    💡 Quem compra mais tem mais chance! A cada R$100 gastos = +10% de bônus na probabilidade.
+                  </p>
                 </div>
                 <Button
                   onClick={() => {
@@ -601,12 +662,26 @@ export default function LotteryManagement() {
                           <p className="text-sm text-muted-foreground">
                             {holder.customer_phone}
                           </p>
+                          {holder.total_spent > 0 && (
+                            <p className="text-xs text-muted-foreground">
+                              Total gasto: R$ {holder.total_spent.toFixed(2)}
+                            </p>
+                          )}
                         </div>
                       </div>
-                      <Badge variant="secondary" className="gap-1">
-                        <Ticket className="h-3 w-3" />
-                        {holder.total_tickets}
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary" className="gap-1">
+                          <Ticket className="h-3 w-3" />
+                          {holder.total_tickets}
+                        </Badge>
+                        <Badge 
+                          variant="outline" 
+                          className="gap-1 bg-primary/10 text-primary border-primary/20"
+                          title="Probabilidade de ganhar"
+                        >
+                          {holder.chance_percent.toFixed(1)}%
+                        </Badge>
+                      </div>
                     </div>
                   ))}
                 </div>

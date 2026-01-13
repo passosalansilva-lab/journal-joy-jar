@@ -294,28 +294,65 @@ export function CheckoutPage({ companyId, companyName, companySlug, companyPhone
   };
 
   const handleCustomerLogout = () => {
+    // ========== LIMPEZA COMPLETA DE DADOS DO CLIENTE ==========
+    // 1. Limpa estados do React
     setLoggedCustomer(null);
     setSelectedAddress(null);
     setShowAddressForm(false);
-    // Limpa descontos de indicação ao sair
     setReferralDiscount(null);
     setLastValidatedEmail(undefined);
+    setCustomerCredits(null); // Limpa créditos de indicação
+    setAppliedCoupon(null); // Limpa cupom aplicado
+    setCouponCode(''); // Limpa código do cupom
+    setCouponError(null);
+    
     if (referralCode) {
       setPendingReferralCode(referralCode);
     }
+    
+    // 2. Limpa TODOS os dados do localStorage relacionados ao cliente
     try {
       const key = getCustomerStorageKey(companyId);
       localStorage.removeItem(key);
       localStorage.removeItem('menupro_customer');
       localStorage.removeItem('menupro_last_customer_identifier');
+      
+      // Limpa também dados de todas as empresas (para garantir limpeza total)
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const storageKey = localStorage.key(i);
+        if (storageKey && storageKey.startsWith('menupro_customer_')) {
+          keysToRemove.push(storageKey);
+        }
+      }
+      keysToRemove.forEach(k => localStorage.removeItem(k));
+      
+      console.log('[CheckoutPage] Customer logout - cleared all customer data');
     } catch (e) {
       console.error('Error clearing stored customer:', e);
     }
+    
+    // 3. Reseta o formulário completamente com valores vazios
     reset({
-      paymentMethod: onlinePaymentEnabled && pixEnabled ? 'pix' : onlinePaymentEnabled && cardEnabled ? 'card_online' : 'cash',
+      customerName: '',
+      customerEmail: '',
+      customerPhone: '',
+      street: '',
+      number: '',
+      complement: '',
+      neighborhood: '',
+      city: '',
+      state: '',
+      zipCode: '',
+      reference: '',
       addressLabel: 'Casa',
+      paymentMethod: onlinePaymentEnabled && pixEnabled ? 'pix' : onlinePaymentEnabled && cardEnabled ? 'card_online' : 'cash',
+      needsChange: false,
+      changeFor: undefined,
+      notes: '',
     });
-    toast({ title: 'Você saiu da sua conta' });
+    
+    toast({ title: 'Você saiu da sua conta', description: 'Todos os dados foram limpos.' });
   };
   // When address is selected, optionally show form if "new"
   useEffect(() => {

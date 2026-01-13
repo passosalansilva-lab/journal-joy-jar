@@ -38,6 +38,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useCart, CartProvider, CartItem } from '@/hooks/useCart';
 import { CartDrawer } from '@/components/menu/ProductModal';
 import { ProductSheet } from '@/components/menu/ProductSheet';
+import { ProductTagsBadges } from '@/components/menu/ProductTagsEditor';
 import { CheckoutPage } from '@/components/menu/CheckoutPage';
 import { ComboModal } from '@/components/menu/ComboModal';
 // import { TrackOrderModal } from '@/components/menu/TrackOrderModal';
@@ -130,6 +131,8 @@ interface Product {
   category_id: string | null;
   // Tipo do produto no banco (ex: 'pizza', 'bebida', etc.)
   product_type?: string;
+  // Selos/tags do produto
+  tags?: string[];
   product_options?: {
     id: string;
     name: string;
@@ -2075,6 +2078,12 @@ function FeaturedProductCard({
             </Badge>
           )}
         </div>
+        {/* Product Tags */}
+        {product.tags && product.tags.length > 0 && (
+          <div className="mb-1.5">
+            <ProductTagsBadges tags={product.tags} />
+          </div>
+        )}
         {Number(product.price) > 0 && (
           <div className="flex items-center gap-1.5 flex-wrap">
             {product.promotional_price && Number(product.promotional_price) > 0 ? (
@@ -2214,6 +2223,13 @@ function ProductCard({
                 </Badge>
               )}
             </div>
+
+            {/* Product Tags */}
+            {product.tags && product.tags.length > 0 && (
+              <div className="mt-1.5">
+                <ProductTagsBadges tags={product.tags} />
+              </div>
+            )}
 
             {product.description && (
               <p className="text-xs text-muted-foreground mt-1 line-clamp-2 leading-relaxed">

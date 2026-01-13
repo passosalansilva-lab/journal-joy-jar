@@ -20,6 +20,7 @@ import { toast } from 'sonner';
 import { useAcaiOptionsCache } from '@/hooks/useAcaiOptionsCache';
 import { cn } from '@/lib/utils';
 import { Label } from '@/components/ui/label';
+import { ProductTagsBadges } from './ProductTagsEditor';
 
 interface ProductOption {
   id: string;
@@ -57,6 +58,7 @@ interface Product {
   category_id: string | null;
   product_options?: ProductOption[];
   requires_preparation?: boolean;
+  tags?: string[];
 }
 
 interface ProductSheetProps {
@@ -849,6 +851,11 @@ export function ProductSheet({ product, open, onClose, primaryColor }: ProductSh
                 </span>
               )}
             </div>
+
+            {/* Product Tags */}
+            {product.tags && product.tags.length > 0 && (
+              <ProductTagsBadges tags={product.tags} />
+            )}
 
             {product.description && (
               <p className="text-muted-foreground text-sm leading-relaxed">

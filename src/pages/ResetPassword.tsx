@@ -72,6 +72,42 @@ export default function ResetPassword() {
     }
   }, [resendTimer]);
 
+  const extractErrorMessage = async (error: any, defaultMessage: string): Promise<string> => {
+    // Try to get error from context (Supabase FunctionsHttpError)
+    if (error?.context) {
+      try {
+        // context is a Response object, need to read it
+        const response = error.context;
+        if (response instanceof Response) {
+          const body = await response.json();
+          return body?.error || defaultMessage;
+        }
+        // Sometimes it's already parsed
+        if (typeof response === 'object' && response?.error) {
+          return response.error;
+        }
+      } catch {
+        // Fall through to other methods
+      }
+    }
+    
+    // Try to parse error message if it contains JSON
+    if (error?.message) {
+      try {
+        const match = error.message.match(/\{.*\}/);
+        if (match) {
+          const parsed = JSON.parse(match[0]);
+          return parsed?.error || defaultMessage;
+        }
+      } catch {
+        // Not JSON, use message as is
+      }
+      return error.message;
+    }
+    
+    return defaultMessage;
+  };
+
   const handleSendCode = async (data: EmailFormData) => {
     setLoading(true);
     try {
@@ -81,21 +117,7 @@ export default function ResetPassword() {
       });
 
       if (error) {
-        // Try to extract error message from the response context
-        let errorMessage = 'Tente novamente';
-        if (error.context?.body) {
-          try {
-            const errorBody = typeof error.context.body === 'string' 
-              ? JSON.parse(error.context.body) 
-              : error.context.body;
-            errorMessage = errorBody?.error || errorMessage;
-          } catch {
-            errorMessage = error.message || errorMessage;
-          }
-        } else {
-          errorMessage = error.message || errorMessage;
-        }
-        
+        const errorMessage = await extractErrorMessage(error, 'Tente novamente');
         toast({
           title: 'Erro ao enviar código',
           description: errorMessage,
@@ -136,20 +158,7 @@ export default function ResetPassword() {
       });
 
       if (error) {
-        let errorMessage = 'Tente novamente';
-        if (error.context?.body) {
-          try {
-            const errorBody = typeof error.context.body === 'string' 
-              ? JSON.parse(error.context.body) 
-              : error.context.body;
-            errorMessage = errorBody?.error || errorMessage;
-          } catch {
-            errorMessage = error.message || errorMessage;
-          }
-        } else {
-          errorMessage = error.message || errorMessage;
-        }
-        
+        const errorMessage = await extractErrorMessage(error, 'Tente novamente');
         toast({
           title: 'Erro ao reenviar código',
           description: errorMessage,
@@ -195,20 +204,7 @@ export default function ResetPassword() {
       });
 
       if (error) {
-        let errorMessage = 'Verifique o código e tente novamente';
-        if (error.context?.body) {
-          try {
-            const errorBody = typeof error.context.body === 'string' 
-              ? JSON.parse(error.context.body) 
-              : error.context.body;
-            errorMessage = errorBody?.error || errorMessage;
-          } catch {
-            errorMessage = error.message || errorMessage;
-          }
-        } else {
-          errorMessage = error.message || errorMessage;
-        }
-        
+        const errorMessage = await extractErrorMessage(error, 'Verifique o código e tente novamente');
         toast({
           title: 'Código inválido',
           description: errorMessage,
@@ -250,20 +246,7 @@ export default function ResetPassword() {
       });
 
       if (error) {
-        let errorMessage = 'Tente novamente';
-        if (error.context?.body) {
-          try {
-            const errorBody = typeof error.context.body === 'string' 
-              ? JSON.parse(error.context.body) 
-              : error.context.body;
-            errorMessage = errorBody?.error || errorMessage;
-          } catch {
-            errorMessage = error.message || errorMessage;
-          }
-        } else {
-          errorMessage = error.message || errorMessage;
-        }
-        
+        const errorMessage = await extractErrorMessage(error, 'Tente novamente');
         toast({
           title: 'Erro ao redefinir senha',
           description: errorMessage,

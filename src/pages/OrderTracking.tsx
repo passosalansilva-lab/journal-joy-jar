@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import {
   Package,
   Clock,
@@ -12,10 +12,12 @@ import {
   CircleCheck,
   XCircle,
   RefreshCw,
+  ArrowLeft,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -128,12 +130,36 @@ const NOTIFICATION_SOUND_URL = '/sounds/default-notification.mp3';
 
 export default function OrderTracking() {
   const { orderId } = useParams<{ orderId: string }>();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [order, setOrder] = useState<Order | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Função para voltar ao cardápio
+  const handleBackToMenu = useCallback(async () => {
+    if (order?.company_id) {
+      try {
+        const { data } = await supabase
+          .from('companies')
+          .select('slug')
+          .eq('id', order.company_id)
+          .single();
+        
+        if (data?.slug) {
+          navigate(`/${data.slug}`);
+        } else {
+          navigate(-1);
+        }
+      } catch {
+        navigate(-1);
+      }
+    } else {
+      navigate(-1);
+    }
+  }, [order?.company_id, navigate]);
 
   // Initialize audio element
   useEffect(() => {
@@ -314,6 +340,17 @@ export default function OrderTracking() {
       {/* Header */}
       <header className="border-b border-border bg-card">
         <div className="max-w-2xl mx-auto px-4 py-4 flex items-center gap-3">
+          {/* Botão Voltar */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleBackToMenu}
+            className="shrink-0"
+            title="Voltar ao cardápio"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          
           {order.company.logo_url ? (
             <img
               src={order.company.logo_url}
@@ -325,7 +362,7 @@ export default function OrderTracking() {
               <Package className="h-5 w-5 text-primary" />
             </div>
           )}
-          <div>
+          <div className="flex-1">
             <h1 className="font-semibold">{order.company.name}</h1>
             <p className="text-sm text-muted-foreground">
               Pedido #{order.id.slice(0, 8)}

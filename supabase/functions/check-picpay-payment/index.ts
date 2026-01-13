@@ -6,10 +6,14 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// PicPay Payment Link API (produção)
-// Docs: https://developers-business.picpay.com/payment-link/en/docs/api/create-charge
+// PicPay APIs
+// Payment Link API (para criar cobranças) - usa OAuth2
 const PICPAY_OAUTH_BASE = "https://checkout-api.picpay.com";
 const PICPAY_PAYMENTLINK_BASE = "https://api.picpay.com/v1/paymentlink";
+
+// E-commerce Public API (para verificar status) - usa x-picpay-token
+// Docs: https://developers-business.picpay.com/wallet/en/checkout/resources/api-reference
+const PICPAY_ECOMMERCE_BASE = "https://appws.picpay.com/ecommerce/public";
 
 async function getPicPayAccessToken(clientId: string, clientSecret: string): Promise<string> {
   const tokenUrl = `${PICPAY_OAUTH_BASE}/oauth2/token`;
@@ -91,7 +95,7 @@ serve(async (req) => {
     // 2) Credenciais
     const { data: paymentSettings, error: settingsError } = await supabaseClient
       .from("company_payment_settings")
-      .select("picpay_client_id, picpay_client_secret")
+      .select("picpay_client_id, picpay_client_secret, picpay_token")
       .eq("company_id", companyId)
       .eq("picpay_enabled", true)
       .single();
@@ -116,68 +120,67 @@ serve(async (req) => {
       });
     }
 
-    // 4) Consulta status
-    const accessToken = await getPicPayAccessToken(
-      paymentSettings.picpay_client_id,
-      paymentSettings.picpay_client_secret
-    );
+    const approvedStatuses = ["paid", "approved", "completed", "settled", "authorized"];
+    let paymentStatus = "pending";
+    let foundApproved = false;
 
-    const statusUrl = `${PICPAY_PAYMENTLINK_BASE}/${linkId}`;
-    console.log(`[check-picpay-payment] Querying payment status at: ${statusUrl}`);
+    // ============================================================
+    // STRATEGY 1: Try E-commerce Public API (x-picpay-token)
+    // This is the official way to check payment status
+    // Endpoint: GET /payments/{referenceId}/status
+    // ============================================================
+    if (paymentSettings.picpay_token) {
+      try {
+        // Use pendingId as referenceId since we pass it during creation
+        const ecommerceStatusUrl = `${PICPAY_ECOMMERCE_BASE}/payments/${pendingId}/status`;
+        console.log(`[check-picpay-payment] Strategy 1: E-commerce API at ${ecommerceStatusUrl}`);
 
-    const picpayResponse = await fetch(statusUrl, {
-      method: "GET",
-      headers: {
-        Accept: "application/json",
-        Authorization: `Bearer ${accessToken}`,
-      },
-    });
+        const ecommerceResp = await fetch(ecommerceStatusUrl, {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            "x-picpay-token": paymentSettings.picpay_token,
+          },
+        });
 
-    const responseText = await picpayResponse.text();
-    console.log(`[check-picpay-payment] PicPay response status: ${picpayResponse.status}`);
-    console.log(`[check-picpay-payment] PicPay response body: ${responseText}`);
+        const ecommerceText = await ecommerceResp.text();
+        console.log(`[check-picpay-payment] E-commerce API response status: ${ecommerceResp.status}`);
+        console.log(`[check-picpay-payment] E-commerce API response body: ${ecommerceText}`);
 
-    if (!picpayResponse.ok) {
-      console.error("[check-picpay-payment] PicPay API error:", responseText);
-      return new Response(JSON.stringify({ approved: false, status: "pending" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+        if (ecommerceResp.ok) {
+          const ecommerceData = JSON.parse(ecommerceText);
+          const ecommerceStatus = String(ecommerceData.status || "").toLowerCase();
+          console.log(`[check-picpay-payment] E-commerce API status: ${ecommerceStatus}`);
+
+          if (approvedStatuses.includes(ecommerceStatus)) {
+            paymentStatus = ecommerceStatus;
+            foundApproved = true;
+            console.log("[check-picpay-payment] Payment approved via E-commerce API!");
+          } else if (["expired", "refunded", "cancelled", "canceled"].includes(ecommerceStatus)) {
+            paymentStatus = ecommerceStatus;
+          }
+        }
+      } catch (e) {
+        console.warn("[check-picpay-payment] E-commerce API failed:", e);
+      }
     }
 
-    const paymentData = JSON.parse(responseText);
-
-    // Log completo para debug - PicPay pode ter status em campos diferentes
-    console.log("[check-picpay-payment] Full payment data keys:", Object.keys(paymentData));
-    console.log("[check-picpay-payment] Raw status field:", paymentData.status);
-    console.log("[check-picpay-payment] Charge status:", paymentData.charge?.status);
-    console.log("[check-picpay-payment] Payment status:", paymentData.payment?.status);
-    console.log("[check-picpay-payment] Transaction status:", paymentData.transaction?.status);
-
-    // Tentar encontrar o status em diferentes campos possíveis
-    const rawStatus =
-      paymentData.status ||
-      paymentData.charge?.status ||
-      paymentData.payment?.status ||
-      paymentData.transaction?.status ||
-      paymentData.payments?.[0]?.status ||
-      "";
-
-    let paymentStatus = String(rawStatus).toLowerCase();
-
-    // 5) Aprovado - PicPay pode retornar "paid", "approved", "completed" ou "PAID"
-    const approvedStatuses = ["paid", "approved", "completed", "settled"];
-
-    // Alguns retornos do /paymentlink/{id} refletem o status do LINK (ex: active)
-    // e o status real do pagamento aparece em /paymentlink/{id}/transactions.
-    if (
-      !approvedStatuses.includes(paymentStatus) &&
-      !["expired", "inactive", "cancelled", "canceled", "refunded"].includes(paymentStatus)
-    ) {
+    // ============================================================
+    // STRATEGY 2: Try Payment Link API with OAuth2 (fallback)
+    // Query /paymentlink/{id} and /paymentlink/{id}/transactions
+    // ============================================================
+    if (!foundApproved) {
       try {
-        const txUrl = `${PICPAY_PAYMENTLINK_BASE}/${linkId}/transactions`;
-        console.log(`[check-picpay-payment] Querying payment transactions at: ${txUrl}`);
+        const accessToken = await getPicPayAccessToken(
+          paymentSettings.picpay_client_id,
+          paymentSettings.picpay_client_secret
+        );
 
-        const txResp = await fetch(txUrl, {
+        // 2a) Check main paymentlink endpoint
+        const statusUrl = `${PICPAY_PAYMENTLINK_BASE}/${linkId}`;
+        console.log(`[check-picpay-payment] Strategy 2a: Payment Link API at ${statusUrl}`);
+
+        const picpayResponse = await fetch(statusUrl, {
           method: "GET",
           headers: {
             Accept: "application/json",
@@ -185,50 +188,93 @@ serve(async (req) => {
           },
         });
 
-        const txText = await txResp.text();
-        console.log(`[check-picpay-payment] Transactions response status: ${txResp.status}`);
-        console.log(`[check-picpay-payment] Transactions response body: ${txText}`);
+        const responseText = await picpayResponse.text();
+        console.log(`[check-picpay-payment] Payment Link API response status: ${picpayResponse.status}`);
+        console.log(`[check-picpay-payment] Payment Link API response body: ${responseText}`);
 
-        if (txResp.ok) {
-          const txJson = JSON.parse(txText);
-          const txList =
-            (Array.isArray(txJson) ? txJson : null) ||
-            txJson.transactions ||
-            txJson.data ||
-            txJson.items ||
-            [];
+        if (picpayResponse.ok) {
+          const paymentData = JSON.parse(responseText);
 
-          if (Array.isArray(txList) && txList.length) {
-            const normalized = txList
-              .map((t: any) =>
-                String(
-                  t.status ||
-                    t.transaction_status ||
-                    t.payment_status ||
-                    t.state ||
-                    t.situation ||
-                    ""
-                ).toLowerCase()
-              )
-              .filter(Boolean);
+          // Try multiple status fields
+          const rawStatus =
+            paymentData.status ||
+            paymentData.charge?.status ||
+            paymentData.payment?.status ||
+            paymentData.transaction?.status ||
+            paymentData.payments?.[0]?.status ||
+            "";
 
-            const paidTxStatus = normalized.find((s: string) => approvedStatuses.includes(s));
-            if (paidTxStatus) {
-              console.log("[check-picpay-payment] Found approved status in transactions:", paidTxStatus);
-              paymentStatus = paidTxStatus;
+          const normalizedStatus = String(rawStatus).toLowerCase();
+          console.log(`[check-picpay-payment] Payment Link status: ${normalizedStatus}`);
+
+          if (approvedStatuses.includes(normalizedStatus)) {
+            paymentStatus = normalizedStatus;
+            foundApproved = true;
+          } else if (["expired", "inactive", "cancelled", "canceled", "refunded"].includes(normalizedStatus)) {
+            paymentStatus = normalizedStatus;
+          }
+        }
+
+        // 2b) Check transactions endpoint if still not approved
+        if (!foundApproved && !["expired", "inactive", "cancelled", "canceled", "refunded"].includes(paymentStatus)) {
+          const txUrl = `${PICPAY_PAYMENTLINK_BASE}/${linkId}/transactions`;
+          console.log(`[check-picpay-payment] Strategy 2b: Transactions endpoint at ${txUrl}`);
+
+          const txResp = await fetch(txUrl, {
+            method: "GET",
+            headers: {
+              Accept: "application/json",
+              Authorization: `Bearer ${accessToken}`,
+            },
+          });
+
+          const txText = await txResp.text();
+          console.log(`[check-picpay-payment] Transactions response status: ${txResp.status}`);
+          console.log(`[check-picpay-payment] Transactions response body: ${txText}`);
+
+          if (txResp.ok) {
+            const txJson = JSON.parse(txText);
+            const txList =
+              (Array.isArray(txJson) ? txJson : null) ||
+              txJson.transactions ||
+              txJson.data ||
+              txJson.items ||
+              [];
+
+            if (Array.isArray(txList) && txList.length) {
+              for (const tx of txList) {
+                const txStatus = String(
+                  tx.status ||
+                  tx.transaction_status ||
+                  tx.payment_status ||
+                  tx.state ||
+                  tx.situation ||
+                  ""
+                ).toLowerCase();
+
+                console.log(`[check-picpay-payment] Transaction status: ${txStatus}`);
+
+                if (approvedStatuses.includes(txStatus)) {
+                  paymentStatus = txStatus;
+                  foundApproved = true;
+                  console.log("[check-picpay-payment] Payment approved via transactions endpoint!");
+                  break;
+                }
+              }
             }
           }
         }
       } catch (e) {
-        console.warn("[check-picpay-payment] Could not query transactions endpoint:", e);
+        console.warn("[check-picpay-payment] Payment Link API failed:", e);
       }
     }
 
-    // Log detalhado para debug
-    console.log("[check-picpay-payment] Resolved payment status:", paymentStatus);
-    console.log("[check-picpay-payment] Full payment data:", JSON.stringify(paymentData));
+    console.log(`[check-picpay-payment] Final resolved status: ${paymentStatus}, approved: ${foundApproved}`);
 
-    if (approvedStatuses.includes(paymentStatus)) {
+    // ============================================================
+    // Create order if approved
+    // ============================================================
+    if (foundApproved) {
       const { error: updateError } = await supabaseClient
         .from("pending_order_payments")
         .update({ status: "processing" })
@@ -271,6 +317,8 @@ serve(async (req) => {
         discount_amount: orderData.discount_amount || 0,
         estimated_delivery_time: estimatedDeliveryTime.toISOString(),
         stripe_payment_intent_id: `picpay_${linkId}`,
+        table_session_id: orderData.table_session_id || null,
+        source: orderData.source || "online",
       });
 
       if (orderError) {
@@ -309,14 +357,14 @@ serve(async (req) => {
       });
     }
 
-    // 6) Cancelado/Expirado/Inativo
+    // Cancelled/Expired
     if (["expired", "inactive", "cancelled", "canceled", "refunded"].includes(paymentStatus)) {
       return new Response(JSON.stringify({ approved: false, status: paymentStatus }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // 7) Ainda pendente (ex: active)
+    // Still pending
     return new Response(JSON.stringify({ approved: false, status: paymentStatus || "pending" }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

@@ -49,6 +49,7 @@ import LotteryManagement from "./pages/store/LotteryManagement";
 import CardTransactions from "./pages/store/CardTransactions";
 import PixTransactions from "./pages/store/PixTransactions";
 import PaymentTransactions from "./pages/store/PaymentTransactions";
+import CustomerTransactions from "./pages/store/CustomerTransactions";
 import AdminCardTransactions from "./pages/admin/AdminCardTransactions";
 import MyOrders from "./pages/MyOrders";
 import OrderTracking from "./pages/OrderTracking";
@@ -310,6 +311,14 @@ const App = () => (
                 element={
                   <ProtectedRoute>
                     <PaymentTransactions />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/dashboard/customer-transactions"
+                element={
+                  <ProtectedRoute>
+                    <CustomerTransactions />
                   </ProtectedRoute>
                 }
               />

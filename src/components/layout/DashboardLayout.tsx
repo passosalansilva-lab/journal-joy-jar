@@ -138,6 +138,7 @@ const navGroups: NavGroup[] = [
       { label: "Equipe", href: "/dashboard/staff", icon: Users, roles: ["store_owner"], featureKey: "staff" },
       { label: "Avaliações", href: "/dashboard/reviews", icon: StarHalf, roles: ["store_owner", "store_staff"], permission: "can_manage_reviews", featureKey: "reviews" },
       { label: "PDV / Caixa", href: "/dashboard/pos", icon: ShoppingBag, roles: ["store_owner", "store_staff"], featureKey: "pos" },
+      { label: "Vendas Online", href: "/dashboard/customer-transactions", icon: Wallet, roles: ["store_owner"], featureKey: "customer_transactions" },
     ],
   },
   {

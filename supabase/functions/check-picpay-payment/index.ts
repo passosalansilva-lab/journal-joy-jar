@@ -10,12 +10,19 @@ const corsHeaders = {
 const PICPAY_OAUTH_URL = "https://checkout-api.picpay.com/oauth2/token";
 const PICPAY_PAYMENTLINK_BASE = "https://api.picpay.com/v1/paymentlink";
 
-const FUNCTION_VERSION = "2026-01-13T21:00:00Z";
+const FUNCTION_VERSION = "2026-01-13T22:00:00Z";
 
-// Status que indicam pagamento aprovado
-const APPROVED_STATUSES = ["paid", "approved", "completed", "settled", "authorized", "captured"];
+// Status que indicam pagamento aprovado (case insensitive)
+const APPROVED_STATUSES = [
+  "paid", "approved", "completed", "settled", "authorized", "captured",
+  "confirmed", "processed", "success", "successful", "done", "accepted"
+];
+
 // Status que indicam cancelamento/expiração
-const CANCELLED_STATUSES = ["expired", "inactive", "cancelled", "canceled", "refunded", "rejected", "failed"];
+const CANCELLED_STATUSES = [
+  "expired", "inactive", "cancelled", "canceled", "refunded", "rejected",
+  "failed", "denied", "error", "timeout", "voided"
+];
 
 async function getPicPayAccessToken(clientId: string, clientSecret: string): Promise<string> {
   console.log("[check-picpay-payment] Requesting OAuth token...");
@@ -44,25 +51,84 @@ async function getPicPayAccessToken(clientId: string, clientSecret: string): Pro
   return data.access_token;
 }
 
-// Função para extrair status de diferentes estruturas de resposta
-function extractStatus(data: any): string | null {
-  const possibleFields = [
-    data?.status,
-    data?.data?.status,
-    data?.charge?.status,
-    data?.payment?.status,
-    data?.transaction?.status,
-    data?.transactions?.[0]?.status,
-    data?.payments?.[0]?.status,
-    data?.content?.status,
+// Função recursiva para encontrar status em qualquer nível do objeto
+function findStatusInObject(obj: any, depth = 0): { status: string; path: string } | null {
+  if (!obj || typeof obj !== "object" || depth > 5) return null;
+
+  // Campos que podem conter status
+  const statusFields = [
+    "status", "payment_status", "charge_status", "transaction_status",
+    "state", "paymentStatus", "chargeStatus", "transactionStatus"
   ];
 
-  for (const field of possibleFields) {
-    if (field && typeof field === "string") {
-      return field.toLowerCase();
+  // Verificar campos de status diretos
+  for (const field of statusFields) {
+    if (obj[field] && typeof obj[field] === "string") {
+      return { status: obj[field].toLowerCase(), path: field };
     }
   }
+
+  // Verificar campos aninhados comuns
+  const nestedFields = [
+    "data", "charge", "payment", "transaction", "result",
+    "response", "body", "content", "details"
+  ];
+
+  for (const field of nestedFields) {
+    if (obj[field] && typeof obj[field] === "object") {
+      const result = findStatusInObject(obj[field], depth + 1);
+      if (result) {
+        return { status: result.status, path: `${field}.${result.path}` };
+      }
+    }
+  }
+
+  // Verificar arrays de transações
+  const arrayFields = ["transactions", "payments", "items", "charges"];
+  for (const field of arrayFields) {
+    if (Array.isArray(obj[field]) && obj[field].length > 0) {
+      // Buscar a transação mais recente com status aprovado
+      for (const item of obj[field]) {
+        const result = findStatusInObject(item, depth + 1);
+        if (result && APPROVED_STATUSES.includes(result.status)) {
+          return { status: result.status, path: `${field}[].${result.path}` };
+        }
+      }
+      // Se nenhum aprovado, retornar o primeiro status encontrado
+      for (const item of obj[field]) {
+        const result = findStatusInObject(item, depth + 1);
+        if (result) {
+          return { status: result.status, path: `${field}[].${result.path}` };
+        }
+      }
+    }
+  }
+
   return null;
+}
+
+// Verificar se o objeto contém indicadores de pagamento bem-sucedido
+function hasPaymentSuccessIndicators(obj: any): boolean {
+  if (!obj || typeof obj !== "object") return false;
+
+  const jsonStr = JSON.stringify(obj).toLowerCase();
+  
+  // Indicadores positivos de pagamento
+  const positiveIndicators = [
+    '"paid"', '"approved"', '"completed"', '"settled"',
+    '"authorized"', '"captured"', '"confirmed"', '"success"',
+    '"is_paid":true', '"ispaid":true', '"paid":true',
+    '"payment_confirmed"', '"transaction_approved"'
+  ];
+
+  for (const indicator of positiveIndicators) {
+    if (jsonStr.includes(indicator)) {
+      console.log("[check-picpay-payment] Found positive indicator:", indicator);
+      return true;
+    }
+  }
+
+  return false;
 }
 
 serve(async (req) => {
@@ -86,6 +152,7 @@ serve(async (req) => {
     }
 
     console.log("[check-picpay-payment] ========================================");
+    console.log("[check-picpay-payment] Version:", FUNCTION_VERSION);
     console.log("[check-picpay-payment] Checking payment for pendingId:", pendingId);
 
     // 1) Verificar se o pedido já foi processado
@@ -168,23 +235,32 @@ serve(async (req) => {
 
     const responseText = await picpayResponse.text();
     console.log(`[check-picpay-payment] Step A response status: ${picpayResponse.status}`);
-    console.log(`[check-picpay-payment] Step A response body: ${responseText}`);
+    console.log(`[check-picpay-payment] Step A response body: ${responseText.slice(0, 1000)}`);
 
     if (picpayResponse.ok) {
       try {
         const paymentData = JSON.parse(responseText);
-        const status = extractStatus(paymentData);
-        console.log("[check-picpay-payment] Step A extracted status:", status);
-
-        if (status) {
-          if (APPROVED_STATUSES.includes(status)) {
-            paymentStatus = status;
+        
+        // Usar nova função de busca recursiva
+        const statusResult = findStatusInObject(paymentData);
+        if (statusResult) {
+          console.log(`[check-picpay-payment] Step A found status: ${statusResult.status} at path: ${statusResult.path}`);
+          
+          if (APPROVED_STATUSES.includes(statusResult.status)) {
+            paymentStatus = statusResult.status;
             foundApproved = true;
-            console.log("[check-picpay-payment] Step A: APPROVED!", status);
-          } else if (CANCELLED_STATUSES.includes(status)) {
-            paymentStatus = status;
-            console.log("[check-picpay-payment] Step A: CANCELLED!", status);
+            console.log("[check-picpay-payment] Step A: APPROVED!", statusResult.status);
+          } else if (CANCELLED_STATUSES.includes(statusResult.status)) {
+            paymentStatus = statusResult.status;
+            console.log("[check-picpay-payment] Step A: CANCELLED!", statusResult.status);
           }
+        }
+
+        // Verificação adicional por indicadores
+        if (!foundApproved && hasPaymentSuccessIndicators(paymentData)) {
+          console.log("[check-picpay-payment] Step A: Found success indicators!");
+          paymentStatus = "approved";
+          foundApproved = true;
         }
       } catch (parseErr) {
         console.error("[check-picpay-payment] Step A parse error:", parseErr);
@@ -209,38 +285,54 @@ serve(async (req) => {
 
         const txText = await txResp.text();
         console.log(`[check-picpay-payment] Step B response status: ${txResp.status}`);
-        console.log(`[check-picpay-payment] Step B response body: ${txText}`);
+        console.log(`[check-picpay-payment] Step B response body: ${txText.slice(0, 1000)}`);
 
-        if (txResp.ok) {
+        if (txResp.ok && txText && txText !== "[]" && txText !== "{}") {
           const txJson = JSON.parse(txText);
-          
-          // Buscar array de transações em diferentes formatos
-          const txList = 
-            Array.isArray(txJson) ? txJson :
-            txJson.transactions ||
-            txJson.data ||
-            txJson.items ||
-            txJson.content ||
-            [];
 
-          console.log("[check-picpay-payment] Step B transactions count:", Array.isArray(txList) ? txList.length : 0);
+          // Se há transações, isso pode indicar pagamento
+          const hasTransactions = 
+            (Array.isArray(txJson) && txJson.length > 0) ||
+            (txJson.transactions && Array.isArray(txJson.transactions) && txJson.transactions.length > 0) ||
+            (txJson.items && Array.isArray(txJson.items) && txJson.items.length > 0) ||
+            (txJson.data && Array.isArray(txJson.data) && txJson.data.length > 0) ||
+            (txJson.content && Array.isArray(txJson.content) && txJson.content.length > 0);
 
-          if (Array.isArray(txList)) {
-            for (const tx of txList) {
-              const txStatus = String(
-                tx.status || tx.transaction_status || tx.payment_status || tx.state || ""
-              ).toLowerCase();
+          console.log("[check-picpay-payment] Step B has transactions:", hasTransactions);
 
-              console.log("[check-picpay-payment] Step B tx status:", txStatus);
+          // Usar busca recursiva no resultado
+          const statusResult = findStatusInObject(txJson);
+          if (statusResult) {
+            console.log(`[check-picpay-payment] Step B found status: ${statusResult.status} at path: ${statusResult.path}`);
 
-              if (APPROVED_STATUSES.includes(txStatus)) {
-                paymentStatus = txStatus;
-                foundApproved = true;
-                console.log("[check-picpay-payment] Step B: APPROVED!", txStatus);
-                break;
-              } else if (CANCELLED_STATUSES.includes(txStatus)) {
-                paymentStatus = txStatus;
-                break;
+            if (APPROVED_STATUSES.includes(statusResult.status)) {
+              paymentStatus = statusResult.status;
+              foundApproved = true;
+              console.log("[check-picpay-payment] Step B: APPROVED!", statusResult.status);
+            } else if (CANCELLED_STATUSES.includes(statusResult.status)) {
+              paymentStatus = statusResult.status;
+            }
+          }
+
+          // Verificação adicional por indicadores
+          if (!foundApproved && hasPaymentSuccessIndicators(txJson)) {
+            console.log("[check-picpay-payment] Step B: Found success indicators!");
+            paymentStatus = "approved";
+            foundApproved = true;
+          }
+
+          // Se tem transações mas não encontrou status específico,
+          // pode ser que a API use uma estrutura diferente
+          if (!foundApproved && hasTransactions) {
+            console.log("[check-picpay-payment] Step B: Has transactions but no approved status - checking raw values");
+            
+            // Log detalhado para debugging
+            const txList = Array.isArray(txJson) ? txJson :
+                           txJson.transactions || txJson.items || txJson.data || txJson.content || [];
+            
+            if (Array.isArray(txList)) {
+              for (let i = 0; i < Math.min(txList.length, 3); i++) {
+                console.log(`[check-picpay-payment] Step B transaction[${i}]:`, JSON.stringify(txList[i]).slice(0, 500));
               }
             }
           }

@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Loader2, Check, AlertCircle, CreditCard, Lock, Calendar, User, Hash, XCircle } from 'lucide-react';
+import { ArrowLeft, Loader2, Check, AlertCircle, CreditCard, Lock, Calendar, User, Hash, XCircle, ChevronDown, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 // Extend window for MercadoPago SDK
 declare global {
@@ -23,6 +25,13 @@ interface OrderItem {
   options?: any[];
 }
 
+interface InstallmentOption {
+  installments: number;
+  installment_amount: number;
+  total_amount: number;
+  recommended_message?: string;
+}
+
 interface CardPaymentScreenProps {
   companyId: string;
   companyName: string;
@@ -39,31 +48,32 @@ interface CardPaymentScreenProps {
   notes?: string;
   onSuccess: (orderId: string) => void;
   onCancel: () => void;
+  isModal?: boolean;
 }
 
 type PaymentStatus = 'loading' | 'form' | 'processing' | 'success' | 'error';
 
-// Função para detectar bandeira do cartão
-function detectCardBrand(cardNumber: string): string {
+// Card brand detection
+function detectCardBrand(cardNumber: string): { brand: string; icon: string } {
   const cleanNumber = cardNumber.replace(/\D/g, '');
   
-  if (/^4/.test(cleanNumber)) return 'visa';
-  if (/^5[1-5]/.test(cleanNumber) || /^2[2-7]/.test(cleanNumber)) return 'master';
-  if (/^3[47]/.test(cleanNumber)) return 'amex';
-  if (/^6(?:011|5)/.test(cleanNumber)) return 'discover';
-  if (/^(636368|636369|438935|504175|451416|636297|5067|4576|4011)/.test(cleanNumber)) return 'elo';
-  if (/^(606282|3841)/.test(cleanNumber)) return 'hipercard';
+  if (/^4/.test(cleanNumber)) return { brand: 'visa', icon: '💳' };
+  if (/^5[1-5]/.test(cleanNumber) || /^2[2-7]/.test(cleanNumber)) return { brand: 'master', icon: '💳' };
+  if (/^3[47]/.test(cleanNumber)) return { brand: 'amex', icon: '💳' };
+  if (/^6(?:011|5)/.test(cleanNumber)) return { brand: 'discover', icon: '💳' };
+  if (/^(636368|636369|438935|504175|451416|636297|5067|4576|4011)/.test(cleanNumber)) return { brand: 'elo', icon: '💳' };
+  if (/^(606282|3841)/.test(cleanNumber)) return { brand: 'hipercard', icon: '💳' };
   
-  return 'unknown';
+  return { brand: 'unknown', icon: '💳' };
 }
 
-// Formatar número do cartão
+// Format card number with spaces
 function formatCardNumber(value: string): string {
   const digits = value.replace(/\D/g, '').slice(0, 16);
   return digits.replace(/(\d{4})(?=\d)/g, '$1 ');
 }
 
-// Formatar data de expiração
+// Format expiry date
 function formatExpiry(value: string): string {
   const digits = value.replace(/\D/g, '').slice(0, 4);
   if (digits.length >= 2) {
@@ -71,6 +81,31 @@ function formatExpiry(value: string): string {
   }
   return digits;
 }
+
+// Format CPF
+function formatCpf(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 11);
+  return digits
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+}
+
+// Format currency
+function formatCurrency(value: number): string {
+  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+// Card brand logos mapping
+const cardBrandColors: Record<string, string> = {
+  visa: 'text-blue-600',
+  master: 'text-orange-500',
+  amex: 'text-blue-800',
+  elo: 'text-yellow-500',
+  hipercard: 'text-red-600',
+  discover: 'text-orange-600',
+  unknown: 'text-muted-foreground',
+};
 
 export function CardPaymentScreen({
   companyId,
@@ -88,6 +123,7 @@ export function CardPaymentScreen({
   notes,
   onSuccess,
   onCancel,
+  isModal = false,
 }: CardPaymentScreenProps) {
   const { toast } = useToast();
   const [status, setStatus] = useState<PaymentStatus>('loading');
@@ -102,15 +138,19 @@ export function CardPaymentScreen({
   const [expiry, setExpiry] = useState('');
   const [cvv, setCvv] = useState('');
   const [cpf, setCpf] = useState('');
+  const [selectedInstallments, setSelectedInstallments] = useState(1);
   
-  const [cardBrand, setCardBrand] = useState('unknown');
+  const [cardBrandInfo, setCardBrandInfo] = useState({ brand: 'unknown', icon: '💳' });
   const [isFormValid, setIsFormValid] = useState(false);
+  const [installmentOptions, setInstallmentOptions] = useState<InstallmentOption[]>([]);
+  const [loadingInstallments, setLoadingInstallments] = useState(false);
+  const [maxInstallments, setMaxInstallments] = useState(12);
 
   // Load Mercado Pago SDK and get public key
   useEffect(() => {
     const loadMercadoPagoSDK = async () => {
       try {
-        // Get public key from backend
+        // Get public key and settings from backend
         const { data: keyData, error: keyError } = await supabase.functions.invoke('get-mercadopago-public-key', {
           body: { companyId },
         });
@@ -120,6 +160,9 @@ export function CardPaymentScreen({
         }
 
         setPublicKey(keyData.publicKey);
+        if (keyData.maxInstallments) {
+          setMaxInstallments(keyData.maxInstallments);
+        }
 
         // Load SDK dynamically
         if (!window.MercadoPago) {
@@ -152,10 +195,61 @@ export function CardPaymentScreen({
     loadMercadoPagoSDK();
   }, [companyId]);
 
-  // Detect card brand
+  // Detect card brand and fetch installments
   useEffect(() => {
-    setCardBrand(detectCardBrand(cardNumber));
-  }, [cardNumber]);
+    const brandInfo = detectCardBrand(cardNumber);
+    setCardBrandInfo(brandInfo);
+    
+    // Fetch installment options when we have 6+ digits
+    const cardDigits = cardNumber.replace(/\D/g, '');
+    if (cardDigits.length >= 6 && mpInstanceRef.current && brandInfo.brand !== 'unknown') {
+      fetchInstallments(cardDigits.slice(0, 6));
+    } else {
+      // Generate default installment options
+      generateDefaultInstallments();
+    }
+  }, [cardNumber, total]);
+
+  const generateDefaultInstallments = () => {
+    const options: InstallmentOption[] = [];
+    for (let i = 1; i <= Math.min(maxInstallments, 12); i++) {
+      options.push({
+        installments: i,
+        installment_amount: total / i,
+        total_amount: total,
+      });
+    }
+    setInstallmentOptions(options);
+  };
+
+  const fetchInstallments = async (bin: string) => {
+    if (!mpInstanceRef.current) return;
+    
+    setLoadingInstallments(true);
+    try {
+      const response = await mpInstanceRef.current.getInstallments({
+        amount: String(total),
+        bin: bin,
+      });
+      
+      if (response && response.length > 0 && response[0].payer_costs) {
+        const options = response[0].payer_costs
+          .filter((cost: any) => cost.installments <= maxInstallments)
+          .map((cost: any) => ({
+            installments: cost.installments,
+            installment_amount: cost.installment_amount,
+            total_amount: cost.total_amount,
+            recommended_message: cost.recommended_message,
+          }));
+        setInstallmentOptions(options);
+      }
+    } catch (err) {
+      console.warn('[CardPaymentScreen] Could not fetch installments, using defaults');
+      generateDefaultInstallments();
+    } finally {
+      setLoadingInstallments(false);
+    }
+  };
 
   // Validate form
   useEffect(() => {
@@ -176,15 +270,7 @@ export function CardPaymentScreen({
     setIsFormValid(isValid);
   }, [cardNumber, cardholderName, expiry, cvv, cpf]);
 
-  const formatCpf = (value: string): string => {
-    const digits = value.replace(/\D/g, '').slice(0, 11);
-    return digits
-      .replace(/(\d{3})(\d)/, '$1.$2')
-      .replace(/(\d{3})(\d)/, '$1.$2')
-      .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
-  };
-
-  // Cancel payment intent
+  // Cancel payment
   const handleCancelPayment = async () => {
     setCancelling(true);
     try {
@@ -200,6 +286,7 @@ export function CardPaymentScreen({
     }
   };
 
+  // Submit payment
   const handleSubmit = async () => {
     if (!isFormValid || !mpInstanceRef.current) return;
     
@@ -239,8 +326,8 @@ export function CardPaymentScreen({
         body: {
           companyId,
           token: tokenResponse.id,
-          paymentMethodId: cardBrand !== 'unknown' ? cardBrand : 'visa',
-          installments: 1,
+          paymentMethodId: cardBrandInfo.brand !== 'unknown' ? cardBrandInfo.brand : 'visa',
+          installments: selectedInstallments,
           cpf: cpfClean,
           items,
           customerName,
@@ -249,19 +336,19 @@ export function CardPaymentScreen({
           deliveryAddressId,
           deliveryFee,
           subtotal,
-          total,
+          total: installmentOptions.find(o => o.installments === selectedInstallments)?.total_amount || total,
           couponId,
           discountAmount,
           notes,
         },
       });
 
-      // Transport-level error (timeout, function down, etc.)
+      // Transport-level error
       if (error) {
         throw new Error('Não foi possível comunicar com o servidor de pagamento. Tente novamente.');
       }
 
-      // Business-level result (always 200)
+      // Business-level result
       if (data?.success && data?.orderId) {
         setStatus('success');
         toast({
@@ -299,214 +386,327 @@ export function CardPaymentScreen({
     }
   };
 
-  // Loading screen
-  if (status === 'loading') {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] p-6 text-center">
-        <Loader2 className="w-12 h-12 text-primary animate-spin mb-4" />
-        <p className="text-muted-foreground">Carregando pagamento...</p>
-      </div>
-    );
-  }
-
-  // Success screen
-  if (status === 'success') {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] p-6 text-center">
-        <div className="w-20 h-20 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center mb-6 animate-in zoom-in duration-300">
-          <Check className="w-10 h-10 text-green-600 dark:text-green-400" />
+  // Render content based on status
+  const renderContent = () => {
+    // Loading screen
+    if (status === 'loading') {
+      return (
+        <div className="flex flex-col items-center justify-center min-h-[400px] p-6 text-center">
+          <div className="relative">
+            <div className="absolute inset-0 rounded-full bg-primary/20 animate-ping" />
+            <div className="relative w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
+              <Loader2 className="w-8 h-8 text-primary animate-spin" />
+            </div>
+          </div>
+          <p className="text-muted-foreground mt-4">Preparando pagamento seguro...</p>
         </div>
-        <h2 className="text-2xl font-bold text-foreground mb-2">Pagamento Aprovado!</h2>
-        <p className="text-muted-foreground">Seu pedido foi realizado com sucesso.</p>
-      </div>
-    );
-  }
+      );
+    }
 
-  // Error screen with retry
-  if (status === 'error') {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] p-6 text-center">
-        <div className="w-20 h-20 rounded-full bg-destructive/20 flex items-center justify-center mb-6">
-          <AlertCircle className="w-10 h-10 text-destructive" />
+    // Success screen
+    if (status === 'success') {
+      return (
+        <div className="flex flex-col items-center justify-center min-h-[400px] p-6 text-center">
+          <div className="w-24 h-24 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center mb-6 animate-in zoom-in duration-500">
+            <Check className="w-12 h-12 text-green-600 dark:text-green-400" />
+          </div>
+          <h2 className="text-2xl font-bold text-foreground mb-2">Pagamento Aprovado!</h2>
+          <p className="text-muted-foreground">Seu pedido foi realizado com sucesso.</p>
+          <p className="text-sm text-muted-foreground mt-2">Redirecionando...</p>
         </div>
-        <h2 className="text-2xl font-bold text-foreground mb-2">Pagamento Recusado</h2>
-        <p className="text-muted-foreground mb-2">{errorMessage}</p>
-        <p className="text-sm text-muted-foreground mb-6">
-          Verifique os dados do cartão e tente novamente.
-        </p>
-        <div className="flex gap-3">
-          <Button onClick={onCancel} variant="outline">
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Voltar
-          </Button>
-          <Button onClick={() => setStatus('form')}>
-            Tentar novamente
-          </Button>
-        </div>
-      </div>
-    );
-  }
+      );
+    }
 
-  // Processing screen
-  if (status === 'processing') {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] p-6 text-center">
-        <Loader2 className="w-16 h-16 text-primary animate-spin mb-6" />
-        <h2 className="text-xl font-semibold text-foreground mb-2">Processando pagamento...</h2>
-        <p className="text-muted-foreground">Aguarde enquanto validamos seu pagamento</p>
-      </div>
-    );
-  }
-
-  // Payment form
-  return (
-    <div className="flex flex-col min-h-screen bg-background">
-      {/* Header */}
-      <header className="sticky top-0 z-10 bg-card border-b border-border p-4">
-        <div className="max-w-lg mx-auto flex items-center justify-between">
-          <Button variant="ghost" size="icon" onClick={onCancel}>
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
-          <h1 className="font-semibold flex items-center gap-2">
-            <CreditCard className="w-5 h-5" />
-            Pagamento com Cartão
-          </h1>
-          <div className="w-10" />
-        </div>
-      </header>
-
-      <main className="flex-1 p-4 max-w-lg mx-auto w-full">
-        {/* Amount */}
-        <div className="text-center mb-6">
-          <p className="text-sm text-muted-foreground">Valor a pagar</p>
-          <p className="text-3xl font-bold text-primary">
-            R$ {total.toFixed(2).replace('.', ',')}
+    // Error screen with retry
+    if (status === 'error') {
+      return (
+        <div className="flex flex-col items-center justify-center min-h-[400px] p-6 text-center">
+          <div className="w-24 h-24 rounded-full bg-destructive/10 flex items-center justify-center mb-6">
+            <AlertCircle className="w-12 h-12 text-destructive" />
+          </div>
+          <h2 className="text-2xl font-bold text-foreground mb-2">Pagamento Recusado</h2>
+          <p className="text-muted-foreground mb-1">{errorMessage}</p>
+          <p className="text-sm text-muted-foreground mb-6">
+            Verifique os dados do cartão e tente novamente.
           </p>
-          <p className="text-sm text-muted-foreground mt-1">{companyName}</p>
+          <div className="flex gap-3">
+            <Button onClick={onCancel} variant="outline">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Voltar
+            </Button>
+            <Button onClick={() => setStatus('form')}>
+              Tentar novamente
+            </Button>
+          </div>
         </div>
+      );
+    }
 
-        {/* Card Form */}
-        <div className="bg-card border border-border rounded-xl p-4 space-y-4">
-          {/* Card Number */}
-          <div className="space-y-2">
-            <Label htmlFor="cardNumber" className="flex items-center gap-2">
-              <CreditCard className="w-4 h-4" />
-              Número do Cartão
-            </Label>
-            <div className="relative">
-              <Input
-                id="cardNumber"
-                type="text"
-                inputMode="numeric"
-                placeholder="0000 0000 0000 0000"
-                value={cardNumber}
-                onChange={(e) => setCardNumber(formatCardNumber(e.target.value))}
-                className="pr-12"
-              />
-              {cardBrand !== 'unknown' && (
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium uppercase text-muted-foreground">
-                  {cardBrand}
+    // Processing screen
+    if (status === 'processing') {
+      return (
+        <div className="flex flex-col items-center justify-center min-h-[400px] p-6 text-center">
+          <div className="relative mb-6">
+            <div className="absolute inset-0 rounded-full border-4 border-primary/20" />
+            <div className="w-20 h-20 rounded-full border-4 border-primary border-t-transparent animate-spin" />
+            <CreditCard className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 text-primary" />
+          </div>
+          <h2 className="text-xl font-semibold text-foreground mb-2">Processando pagamento...</h2>
+          <p className="text-muted-foreground">Aguarde enquanto validamos seu cartão</p>
+          <p className="text-xs text-muted-foreground mt-2">Não feche esta tela</p>
+        </div>
+      );
+    }
+
+    // Payment form
+    return (
+      <div className="flex flex-col">
+        {/* Header - Only show if not modal */}
+        {!isModal && (
+          <header className="sticky top-0 z-10 bg-card border-b border-border p-4">
+            <div className="max-w-lg mx-auto flex items-center justify-between">
+              <Button variant="ghost" size="icon" onClick={onCancel}>
+                <ArrowLeft className="w-5 h-5" />
+              </Button>
+              <h1 className="font-semibold flex items-center gap-2">
+                <CreditCard className="w-5 h-5" />
+                Pagamento com Cartão
+              </h1>
+              <div className="w-10" />
+            </div>
+          </header>
+        )}
+
+        <div className={`p-4 ${isModal ? '' : 'max-w-lg mx-auto w-full'}`}>
+          {/* Amount Card */}
+          <div className="bg-gradient-to-br from-primary/5 to-primary/10 rounded-xl p-4 mb-6 border border-primary/20">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Valor total</p>
+                <p className="text-2xl font-bold text-primary">
+                  {formatCurrency(total)}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-muted-foreground">{companyName}</p>
+                <div className="flex items-center gap-1 text-xs text-green-600 mt-1">
+                  <Shield className="w-3 h-3" />
+                  <span>Compra segura</span>
                 </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Card Form */}
+          <div className="space-y-4">
+            {/* Card Number */}
+            <div className="space-y-2">
+              <Label htmlFor="cardNumber" className="flex items-center gap-2 text-sm font-medium">
+                <CreditCard className="w-4 h-4 text-muted-foreground" />
+                Número do Cartão
+              </Label>
+              <div className="relative">
+                <Input
+                  id="cardNumber"
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="0000 0000 0000 0000"
+                  value={cardNumber}
+                  onChange={(e) => setCardNumber(formatCardNumber(e.target.value))}
+                  className="pr-16 h-12 text-lg font-mono"
+                />
+                {cardBrandInfo.brand !== 'unknown' && (
+                  <div className={`absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold uppercase ${cardBrandColors[cardBrandInfo.brand]}`}>
+                    {cardBrandInfo.brand}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Cardholder Name */}
+            <div className="space-y-2">
+              <Label htmlFor="cardholderName" className="flex items-center gap-2 text-sm font-medium">
+                <User className="w-4 h-4 text-muted-foreground" />
+                Nome no Cartão
+              </Label>
+              <Input
+                id="cardholderName"
+                type="text"
+                placeholder="COMO ESTÁ IMPRESSO NO CARTÃO"
+                value={cardholderName}
+                onChange={(e) => setCardholderName(e.target.value.toUpperCase())}
+                className="h-12 uppercase"
+              />
+            </div>
+
+            {/* Expiry, CVV, and CPF */}
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="expiry" className="flex items-center gap-1 text-sm font-medium">
+                  <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
+                  Validade
+                </Label>
+                <Input
+                  id="expiry"
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="MM/AA"
+                  value={expiry}
+                  onChange={(e) => setExpiry(formatExpiry(e.target.value))}
+                  className="h-12 text-center font-mono"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="cvv" className="flex items-center gap-1 text-sm font-medium">
+                  <Lock className="w-3.5 h-3.5 text-muted-foreground" />
+                  CVV
+                </Label>
+                <Input
+                  id="cvv"
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="000"
+                  value={cvv}
+                  onChange={(e) => setCvv(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                  className="h-12 text-center font-mono"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="cpf" className="flex items-center gap-1 text-sm font-medium">
+                  <Hash className="w-3.5 h-3.5 text-muted-foreground" />
+                  CPF
+                </Label>
+                <Input
+                  id="cpf"
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="000.000.000-00"
+                  value={cpf}
+                  onChange={(e) => setCpf(formatCpf(e.target.value))}
+                  className="h-12 text-sm"
+                />
+              </div>
+            </div>
+
+            {/* Installments */}
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2 text-sm font-medium">
+                <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                Parcelas
+              </Label>
+              <Select
+                value={String(selectedInstallments)}
+                onValueChange={(value) => setSelectedInstallments(Number(value))}
+                disabled={loadingInstallments}
+              >
+                <SelectTrigger className="h-12">
+                  <SelectValue placeholder="Selecione as parcelas" />
+                </SelectTrigger>
+                <SelectContent>
+                  {installmentOptions.map((option) => (
+                    <SelectItem key={option.installments} value={String(option.installments)}>
+                      <div className="flex items-center justify-between gap-4 w-full">
+                        <span>
+                          {option.installments}x de {formatCurrency(option.installment_amount)}
+                        </span>
+                        {option.installments > 1 && option.total_amount > total && (
+                          <span className="text-xs text-muted-foreground ml-2">
+                            (Total: {formatCurrency(option.total_amount)})
+                          </span>
+                        )}
+                        {option.installments === 1 && (
+                          <span className="text-xs text-green-600 ml-2">
+                            Sem juros
+                          </span>
+                        )}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {loadingInstallments && (
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  Calculando parcelas...
+                </p>
               )}
             </div>
           </div>
 
-          {/* Cardholder Name */}
-          <div className="space-y-2">
-            <Label htmlFor="cardholderName" className="flex items-center gap-2">
-              <User className="w-4 h-4" />
-              Nome no Cartão
-            </Label>
-            <Input
-              id="cardholderName"
-              type="text"
-              placeholder="Como está impresso no cartão"
-              value={cardholderName}
-              onChange={(e) => setCardholderName(e.target.value.toUpperCase())}
-            />
-          </div>
-
-          {/* Expiry and CVV */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="expiry" className="flex items-center gap-2">
-                <Calendar className="w-4 h-4" />
-                Validade
-              </Label>
-              <Input
-                id="expiry"
-                type="text"
-                inputMode="numeric"
-                placeholder="MM/AA"
-                value={expiry}
-                onChange={(e) => setExpiry(formatExpiry(e.target.value))}
-              />
+          {/* Summary */}
+          {selectedInstallments > 1 && (
+            <div className="mt-4 p-3 bg-muted/50 rounded-lg">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Parcelas</span>
+                <span className="font-medium">
+                  {selectedInstallments}x de {formatCurrency(installmentOptions.find(o => o.installments === selectedInstallments)?.installment_amount || total / selectedInstallments)}
+                </span>
+              </div>
+              {installmentOptions.find(o => o.installments === selectedInstallments)?.total_amount !== total && (
+                <div className="flex justify-between text-sm mt-1">
+                  <span className="text-muted-foreground">Total com juros</span>
+                  <span className="font-medium">
+                    {formatCurrency(installmentOptions.find(o => o.installments === selectedInstallments)?.total_amount || total)}
+                  </span>
+                </div>
+              )}
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="cvv" className="flex items-center gap-2">
-                <Lock className="w-4 h-4" />
-                CVV
-              </Label>
-              <Input
-                id="cvv"
-                type="text"
-                inputMode="numeric"
-                placeholder="000"
-                value={cvv}
-                onChange={(e) => setCvv(e.target.value.replace(/\D/g, '').slice(0, 4))}
-              />
-            </div>
-          </div>
-
-          {/* CPF */}
-          <div className="space-y-2">
-            <Label htmlFor="cpf" className="flex items-center gap-2">
-              <Hash className="w-4 h-4" />
-              CPF do Titular
-            </Label>
-            <Input
-              id="cpf"
-              type="text"
-              inputMode="numeric"
-              placeholder="000.000.000-00"
-              value={cpf}
-              onChange={(e) => setCpf(formatCpf(e.target.value))}
-            />
-          </div>
-        </div>
-
-        {/* Submit button */}
-        <Button
-          className="w-full mt-6"
-          size="lg"
-          onClick={handleSubmit}
-          disabled={!isFormValid}
-        >
-          <Lock className="w-4 h-4 mr-2" />
-          Pagar R$ {total.toFixed(2).replace('.', ',')}
-        </Button>
-
-        {/* Cancel button */}
-        <Button
-          onClick={handleCancelPayment}
-          variant="ghost"
-          className="w-full mt-2 text-destructive hover:text-destructive hover:bg-destructive/10"
-          disabled={cancelling}
-        >
-          {cancelling ? (
-            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-          ) : (
-            <XCircle className="w-4 h-4 mr-2" />
           )}
-          {cancelling ? 'Cancelando...' : 'Cancelar e escolher outro pagamento'}
-        </Button>
 
-        {/* Security badge */}
-        <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground mt-4">
-          <Lock className="w-4 h-4" />
-          <span>Pagamento seguro via Mercado Pago</span>
+          {/* Submit button */}
+          <Button
+            className="w-full mt-6 h-14 text-lg font-semibold"
+            size="lg"
+            onClick={handleSubmit}
+            disabled={!isFormValid}
+          >
+            <Lock className="w-5 h-5 mr-2" />
+            Pagar {formatCurrency(installmentOptions.find(o => o.installments === selectedInstallments)?.total_amount || total)}
+          </Button>
+
+          {/* Cancel button */}
+          <Button
+            onClick={handleCancelPayment}
+            variant="ghost"
+            className="w-full mt-2 text-muted-foreground hover:text-foreground"
+            disabled={cancelling}
+          >
+            {cancelling ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <XCircle className="w-4 h-4 mr-2" />
+            )}
+            {cancelling ? 'Cancelando...' : 'Escolher outro pagamento'}
+          </Button>
+
+          {/* Security badge */}
+          <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground mt-4 pb-4">
+            <Shield className="w-4 h-4" />
+            <span>Pagamento 100% seguro via Mercado Pago</span>
+          </div>
         </div>
-      </main>
+      </div>
+    );
+  };
+
+  // Render as modal or full page
+  if (isModal) {
+    return (
+      <Dialog open={true} onOpenChange={(open) => !open && onCancel()}>
+        <DialogContent className="sm:max-w-lg p-0 gap-0 overflow-hidden max-h-[90vh] overflow-y-auto">
+          <div className="sticky top-0 z-10 bg-background border-b border-border p-4 flex items-center gap-3">
+            <CreditCard className="w-5 h-5 text-primary" />
+            <h2 className="font-semibold">Pagamento com Cartão</h2>
+          </div>
+          {renderContent()}
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-background">
+      {renderContent()}
     </div>
   );
 }

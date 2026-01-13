@@ -42,6 +42,7 @@ import KitchenDisplay from "./pages/store/KitchenDisplay";
 import StaffManagement from "./pages/store/StaffManagement";
 import CustomerReferrals from "./pages/store/CustomerReferrals";
 import LotteryManagement from "./pages/store/LotteryManagement";
+import CardTransactions from "./pages/store/CardTransactions";
 import MyOrders from "./pages/MyOrders";
 import OrderTracking from "./pages/OrderTracking";
 import OrderHistory from "./pages/OrderHistory";
@@ -278,7 +279,14 @@ const App = () => (
                       <LotteryManagement />
                     </ProtectedRoute>
                   }
-                />
+                 />
+              <Route
+                path="/dashboard/card-transactions"
+                element={
+                  <ProtectedRoute>
+                    <CardTransactions />
+                  </ProtectedRoute>
+                }
               <Route
                 path="/dashboard/nfe"
                 element={

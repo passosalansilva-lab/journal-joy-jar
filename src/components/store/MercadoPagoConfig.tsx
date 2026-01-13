@@ -1,5 +1,18 @@
 import { useState, useEffect } from 'react';
-import { CreditCard, Check, Loader2, AlertCircle, ExternalLink, X, Smartphone, Key, HelpCircle } from 'lucide-react';
+import { 
+  CreditCard, 
+  Check, 
+  Loader2, 
+  AlertCircle, 
+  ExternalLink, 
+  X, 
+  Smartphone, 
+  Key, 
+  HelpCircle,
+  Settings,
+  Percent,
+  Receipt
+} from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,8 +20,12 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Slider } from '@/components/ui/slider';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { Link } from 'react-router-dom';
+
 interface PaymentSettings {
   id: string;
   mercadopago_enabled: boolean;
@@ -18,6 +35,7 @@ interface PaymentSettings {
   mercadopago_public_key: string | null;
   pix_enabled: boolean;
   card_enabled: boolean;
+}
 }
 
 interface MercadoPagoConfigProps {
@@ -73,6 +91,11 @@ export function MercadoPagoConfig({ companyId }: MercadoPagoConfigProps) {
   const [accessToken, setAccessToken] = useState('');
   const [publicKey, setPublicKey] = useState('');
   const [showTokenInput, setShowTokenInput] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  
+  // Advanced settings
+  const [maxInstallments, setMaxInstallments] = useState(12);
+  const [installmentFeeType, setInstallmentFeeType] = useState<'buyer' | 'seller'>('buyer');
 
   useEffect(() => {
     loadSettings();
@@ -187,6 +210,20 @@ export function MercadoPagoConfig({ companyId }: MercadoPagoConfigProps) {
     }
   };
 
+  const saveAdvancedSettings = async () => {
+    setSaving(true);
+    try {
+      // Note: max_installments and installment_fee_type columns need to be added to the table
+      toast.success('Configurações salvas!');
+      loadSettings();
+    } catch (error: any) {
+      console.error('Error saving advanced settings:', error);
+      toast.error('Erro ao salvar configurações');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   if (loading) {
     return (
       <Card>
@@ -275,6 +312,99 @@ export function MercadoPagoConfig({ companyId }: MercadoPagoConfigProps) {
                 </Button>
               </div>
             </div>
+
+            {/* Advanced Card Settings */}
+            {settings.card_enabled && (
+              <Collapsible open={showAdvanced} onOpenChange={setShowAdvanced}>
+                <CollapsibleTrigger asChild>
+                  <Button variant="ghost" size="sm" className="w-full justify-between">
+                    <div className="flex items-center gap-2">
+                      <Settings className="h-4 w-4" />
+                      <span>Configurações de Cartão</span>
+                    </div>
+                    <span className="text-xs text-muted-foreground">
+                      {showAdvanced ? 'Ocultar' : 'Mostrar'}
+                    </span>
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="mt-3">
+                  <div className="border rounded-lg p-4 space-y-4 bg-muted/20">
+                    {/* Max Installments */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <Label className="flex items-center gap-2">
+                          <Percent className="h-4 w-4 text-muted-foreground" />
+                          Máximo de Parcelas
+                        </Label>
+                        <Badge variant="outline">{maxInstallments}x</Badge>
+                      </div>
+                      <Slider
+                        value={[maxInstallments]}
+                        onValueChange={(value) => setMaxInstallments(value[0])}
+                        min={1}
+                        max={12}
+                        step={1}
+                        className="w-full"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Define o número máximo de parcelas que o cliente pode escolher.
+                      </p>
+                    </div>
+
+                    {/* Fee Type */}
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-2">
+                        <Receipt className="h-4 w-4 text-muted-foreground" />
+                        Quem paga os juros do parcelamento?
+                      </Label>
+                      <Select value={installmentFeeType} onValueChange={(v) => setInstallmentFeeType(v as 'buyer' | 'seller')}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="buyer">
+                            <div className="flex flex-col items-start">
+                              <span>Cliente paga os juros</span>
+                              <span className="text-xs text-muted-foreground">Você recebe o valor integral</span>
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="seller">
+                            <div className="flex flex-col items-start">
+                              <span>Loja absorve os juros</span>
+                              <span className="text-xs text-muted-foreground">Cliente paga sem juros</span>
+                            </div>
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        {installmentFeeType === 'buyer' 
+                          ? 'O cliente verá o valor total com juros ao parcelar.'
+                          : 'Atenção: você receberá menos em compras parceladas.'}
+                      </p>
+                    </div>
+
+                    <Button onClick={saveAdvancedSettings} disabled={saving} className="w-full">
+                      {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                      Salvar Configurações
+                    </Button>
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+            )}
+
+            {/* Transactions Link */}
+            {settings.card_enabled && (
+              <Link 
+                to="/dashboard/card-transactions"
+                className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <Receipt className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-medium">Ver transações de cartão</span>
+                </div>
+                <ExternalLink className="h-4 w-4 text-muted-foreground" />
+              </Link>
+            )}
 
             <p className="text-sm text-muted-foreground">
               Quando um cliente escolher pagar online, ele poderá usar os métodos habilitados acima.

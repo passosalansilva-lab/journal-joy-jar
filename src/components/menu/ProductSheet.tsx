@@ -1030,7 +1030,7 @@ export function ProductSheet({ product, open, onClose, primaryColor }: ProductSh
             </div>
 
             <Button
-              className="flex-1 h-12 rounded-xl text-base font-bold gradient-primary text-primary-foreground"
+              className="flex-1 h-12 rounded-xl text-base font-bold bg-primary hover:bg-primary/90 text-primary-foreground"
               onClick={handleAddToCart}
               disabled={!canAddToCart}
             >

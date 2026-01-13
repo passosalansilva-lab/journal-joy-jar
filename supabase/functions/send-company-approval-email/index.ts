@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getEmailTemplate, replaceTemplateVariables, replaceSubjectVariables } from "../_shared/email-templates.ts";
+import { getEmailTemplate, replaceTemplateVariables, replaceSubjectVariables, getPlatformUrl } from "../_shared/email-templates.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -117,15 +117,23 @@ serve(async (req) => {
       throw new Error("Empresa ou usuário não encontrado");
     }
 
-    const loginUrl = `https://www.cardpondelivery.com/auth`;
+    // Buscar URL da plataforma do banco de dados
+    const platformUrl = await getPlatformUrl();
+    const loginUrl = `${platformUrl}/auth`;
+    const dashboardUrl = `${platformUrl}/dashboard`;
 
     // Buscar template do banco
     const template = await getEmailTemplate("company-approval");
     
     const variables = {
       companyName: company.name,
+      company_name: company.name,
       companySlug: company.slug,
+      company_slug: company.slug,
       loginUrl,
+      login_url: loginUrl,
+      dashboardUrl,
+      dashboard_url: dashboardUrl,
       year: new Date().getFullYear().toString(),
     };
 

@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { getEmailTemplate, replaceTemplateVariables, replaceSubjectVariables } from "../_shared/email-templates.ts";
+import { getEmailTemplate, replaceTemplateVariables, replaceSubjectVariables, getPlatformUrl } from "../_shared/email-templates.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 
@@ -75,11 +75,19 @@ const handler = async (req: Request): Promise<Response> => {
     // Buscar template do banco
     const template = await getEmailTemplate("driver-welcome");
     
+    // Se loginUrl não for passado, usar a URL da plataforma
+    const platformUrl = await getPlatformUrl();
+    const finalLoginUrl = loginUrl || `${platformUrl}/driver/login`;
+    
     const variables = {
       driverName,
+      driver_name: driverName,
       driverEmail,
+      driver_email: driverEmail,
       companyName,
-      loginUrl,
+      company_name: companyName,
+      loginUrl: finalLoginUrl,
+      login_url: finalLoginUrl,
       year: new Date().getFullYear().toString(),
     };
 

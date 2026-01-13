@@ -481,8 +481,51 @@ const DEFAULT_TEMPLATES: Partial<EmailTemplate>[] = [
 </html>`,
   },
   {
+    slug: "email-verification",
+    name: "Verificação de Email (Cadastro)",
+    description: "Código de verificação enviado durante o cadastro de nova conta",
+    subject: "Código de verificação - CardpOn",
+    variables: [
+      { key: "{{code}}", description: "Código de verificação", example: "123456" },
+      { key: "{{year}}", description: "Ano atual", example: "2025" },
+      { key: "{{email}}", description: "Email do usuário", example: "usuario@email.com" },
+    ],
+    html_content: `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; background-color: #0a0a0a;">
+  <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+    <div style="background: linear-gradient(135deg, #10B981 0%, #059669 100%); border-radius: 20px 20px 0 0; padding: 40px 32px; text-align: center;">
+      <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 700;">CardpOn</h1>
+      <p style="color: rgba(255,255,255,0.9); margin: 8px 0 0 0; font-size: 14px;">Seu cardápio digital inteligente</p>
+    </div>
+    <div style="background: #18181b; padding: 48px 32px; border-radius: 0 0 20px 20px;">
+      <h2 style="color: #ffffff; margin: 0 0 12px 0; font-size: 24px; font-weight: 700; text-align: center;">Confirme seu email</h2>
+      <p style="color: #a1a1aa; margin: 0 0 32px 0; font-size: 15px; line-height: 1.7; text-align: center;">
+        Use o código abaixo para verificar seu email e completar seu cadastro.
+      </p>
+      <div style="background: linear-gradient(135deg, #10B981 0%, #059669 100%); border-radius: 16px; padding: 32px; text-align: center; margin-bottom: 32px;">
+        <p style="color: rgba(255,255,255,0.8); margin: 0 0 8px 0; font-size: 12px; text-transform: uppercase; letter-spacing: 2px;">Seu código</p>
+        <span style="font-size: 42px; font-weight: 800; letter-spacing: 12px; color: #ffffff; font-family: 'Courier New', monospace;">{{code}}</span>
+      </div>
+      <div style="background: #27272a; border-radius: 12px; padding: 16px 20px; text-align: center; margin-bottom: 24px;">
+        <p style="color: #fbbf24; margin: 0; font-size: 14px; font-weight: 600;">⏱️ Este código expira em 10 minutos</p>
+      </div>
+      <p style="color: #71717a; margin: 0; font-size: 13px; text-align: center;">Se você não solicitou este código, ignore este email.</p>
+    </div>
+    <div style="padding: 24px 20px; text-align: center;">
+      <p style="color: #52525b; font-size: 12px; margin: 0;">© {{year}} CardpOn. Todos os direitos reservados.</p>
+    </div>
+  </div>
+</body>
+</html>`,
+  },
+  {
     slug: "verification-code",
-    name: "Código de Verificação",
+    name: "Código de Verificação (Genérico)",
     description: "Código de verificação para email/telefone",
     subject: "Seu código de verificação",
     variables: [
@@ -515,6 +558,101 @@ const DEFAULT_TEMPLATES: Partial<EmailTemplate>[] = [
               </div>
               <p style="margin: 0; font-size: 14px; color: #71717a; text-align: center;">
                 Este código expira em <strong>{{expiration_minutes}} minutos</strong>.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`,
+  },
+  {
+    slug: "refund-approved",
+    name: "Estorno Aprovado",
+    description: "Email enviado ao lojista quando seu estorno é aprovado",
+    subject: "✅ Estorno aprovado e processado",
+    variables: [
+      { key: "{{company_name}}", description: "Nome da empresa", example: "Pizzaria do Zé" },
+      { key: "{{amount}}", description: "Valor do estorno", example: "R$ 50,00" },
+      { key: "{{customer_name}}", description: "Nome do cliente", example: "Maria Santos" },
+      { key: "{{dashboard_url}}", description: "URL do dashboard", example: "https://cardpondelivery.com/dashboard" },
+    ],
+    html_content: `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 0; background-color: #f4f4f5;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f4f4f5; padding: 40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 500px; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+          <tr>
+            <td style="padding: 40px;">
+              <h1 style="margin: 0 0 20px; font-size: 24px; font-weight: 700; color: #16a34a; text-align: center;">
+                ✅ Estorno Processado
+              </h1>
+              <p style="margin: 0 0 20px; font-size: 16px; color: #52525b; text-align: center; line-height: 1.6;">
+                Sua solicitação de estorno foi aprovada e processada com sucesso.
+              </p>
+              <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 20px; margin-bottom: 20px;">
+                <p style="margin: 0 0 8px 0; font-size: 14px; color: #166534;"><strong>Valor:</strong> {{amount}}</p>
+                <p style="margin: 0; font-size: 14px; color: #166534;"><strong>Cliente:</strong> {{customer_name}}</p>
+              </div>
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="{{dashboard_url}}/transactions" style="display: inline-block; background: linear-gradient(135deg, #16a34a, #15803d); color: #ffffff; text-decoration: none; padding: 14px 28px; border-radius: 8px; font-weight: 600;">
+                  Ver Transações
+                </a>
+              </div>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`,
+  },
+  {
+    slug: "refund-rejected",
+    name: "Estorno Rejeitado",
+    description: "Email enviado ao lojista quando seu estorno é rejeitado",
+    subject: "❌ Solicitação de estorno rejeitada",
+    variables: [
+      { key: "{{company_name}}", description: "Nome da empresa", example: "Pizzaria do Zé" },
+      { key: "{{amount}}", description: "Valor solicitado", example: "R$ 50,00" },
+      { key: "{{customer_name}}", description: "Nome do cliente", example: "Maria Santos" },
+      { key: "{{rejection_reason}}", description: "Motivo da rejeição", example: "Pagamento já foi estornado anteriormente" },
+    ],
+    html_content: `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 0; background-color: #f4f4f5;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f4f4f5; padding: 40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 500px; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+          <tr>
+            <td style="padding: 40px;">
+              <h1 style="margin: 0 0 20px; font-size: 24px; font-weight: 700; color: #dc2626; text-align: center;">
+                ❌ Estorno Rejeitado
+              </h1>
+              <p style="margin: 0 0 20px; font-size: 16px; color: #52525b; text-align: center; line-height: 1.6;">
+                Sua solicitação de estorno foi analisada e não pôde ser aprovada.
+              </p>
+              <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 12px; padding: 20px; margin-bottom: 20px;">
+                <p style="margin: 0 0 8px 0; font-size: 14px; color: #991b1b;"><strong>Valor:</strong> {{amount}}</p>
+                <p style="margin: 0 0 8px 0; font-size: 14px; color: #991b1b;"><strong>Cliente:</strong> {{customer_name}}</p>
+                <p style="margin: 0; font-size: 14px; color: #991b1b;"><strong>Motivo:</strong> {{rejection_reason}}</p>
+              </div>
+              <p style="margin: 0; font-size: 14px; color: #71717a; text-align: center;">
+                Se você tiver dúvidas, entre em contato com o suporte.
               </p>
             </td>
           </tr>

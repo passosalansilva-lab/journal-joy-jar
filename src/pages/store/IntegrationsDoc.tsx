@@ -238,30 +238,13 @@ export default function IntegrationsDoc() {
                       </p>
                     </div>
 
-                    <Alert className="border-amber-500/50 bg-amber-50 dark:bg-amber-950/20">
-                      <Settings className="h-4 w-4 text-amber-600" />
-                      <AlertTitle className="text-amber-600">Configuração do Webhook (Recomendado)</AlertTitle>
-                      <AlertDescription className="space-y-3">
-                        <p>
-                          Para que o pagamento seja confirmado automaticamente, configure a URL de notificação no painel do PicPay:
-                        </p>
-                        <div className="flex items-center gap-2 p-2 bg-background rounded border">
-                          <code className="text-xs flex-1 break-all">
-                            {getWebhookUrl('picpay-webhook')}
-                          </code>
-                          <Button 
-                            size="sm" 
-                            variant="ghost"
-                            onClick={() => copyToClipboard(getWebhookUrl('picpay-webhook'), 'URL do Webhook')}
-                          >
-                            <Copy className="h-4 w-4" />
-                          </Button>
-                        </div>
-                        <ol className="text-sm space-y-1 list-decimal list-inside">
-                          <li>Acesse o <strong>PicPay Studio</strong></li>
-                          <li>Vá em <strong>Ajustes → Meu Checkout → URL de Notificação</strong></li>
-                          <li>Cole a URL acima e salve</li>
-                        </ol>
+                    <Alert>
+                      <CheckCircle2 className="h-4 w-4 text-green-500" />
+                      <AlertTitle>Confirmação automática</AlertTitle>
+                      <AlertDescription>
+                        A integração utiliza a <strong>Payment Link API</strong> do PicPay. A confirmação do pagamento 
+                        é feita automaticamente via verificação periódica — não é necessário configurar webhooks manualmente.
+                        Quando o cliente clica em "Já paguei, verificar", o sistema consulta o status diretamente na API do PicPay.
                       </AlertDescription>
                     </Alert>
                   </div>

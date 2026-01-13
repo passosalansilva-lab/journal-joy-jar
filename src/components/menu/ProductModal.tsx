@@ -755,26 +755,26 @@ export function ProductModal({ product, open, onClose }: ProductModalProps) {
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-md max-h-[90vh] md:max-h-[85vh] overflow-hidden flex flex-col p-0 gap-0">
+      <DialogContent className="sm:max-w-md min-h-[400px] max-h-[90vh] md:max-h-[85vh] overflow-hidden flex flex-col p-0 gap-0">
         {/* Product Image - Compact */}
         {product.image_url && (
-          <div className="relative aspect-[2/1] w-full flex-shrink-0 bg-muted">
+          <div className="relative h-32 sm:h-36 w-full flex-shrink-0 bg-muted">
             <img
               src={product.image_url}
               alt={product.name}
               className="w-full h-full object-cover"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
-            <div className="absolute bottom-0 left-0 right-0 p-3 sm:p-4">
-              <h2 className="font-bold text-lg sm:text-xl text-white leading-tight">{product.name}</h2>
+            <div className="absolute bottom-0 left-0 right-0 p-3">
+              <h2 className="font-bold text-base sm:text-lg text-white leading-tight">{product.name}</h2>
               <div className="flex items-center gap-2 mt-0.5">
                 {product.promotional_price && Number(product.promotional_price) > 0 ? (
                   <>
-                    <span className="text-sm line-through text-white/60">R$ {Number(product.price).toFixed(2)}</span>
-                    <span className="text-xl sm:text-2xl font-bold text-white">R$ {getBasePriceForDisplay().toFixed(2)}</span>
+                    <span className="text-xs line-through text-white/60">R$ {Number(product.price).toFixed(2)}</span>
+                    <span className="text-lg sm:text-xl font-bold text-white">R$ {getBasePriceForDisplay().toFixed(2)}</span>
                   </>
                 ) : (
-                  <span className="text-xl sm:text-2xl font-bold text-white">R$ {getBasePriceForDisplay().toFixed(2)}</span>
+                  <span className="text-lg sm:text-xl font-bold text-white">R$ {getBasePriceForDisplay().toFixed(2)}</span>
                 )}
               </div>
             </div>

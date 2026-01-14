@@ -1080,7 +1080,7 @@ export function CartDrawer({
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md max-h-[90vh] flex flex-col p-0 overflow-hidden">
         {/* Header com gradiente */}
-        <div className="relative bg-gradient-to-r from-primary to-primary/80 px-5 py-4">
+        <div className="relative bg-gradient-to-r from-primary to-primary/80 px-5 py-4 flex-shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
               <ShoppingBag className="h-5 w-5 text-primary-foreground" />
@@ -1106,93 +1106,96 @@ export function CartDrawer({
           </div>
         ) : (
           <>
-            <div className="flex-1 overflow-y-auto p-4 space-y-2 min-h-[200px]">
-              {items.map((item, index) => (
-                <div
-                  key={item.id}
-                  className="relative flex gap-2.5 p-2.5 rounded-xl border border-border/70 bg-card shadow-sm"
-                >
-                  {/* Número do item */}
-                  <div className="absolute -top-1.5 -left-1.5 w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center shadow-sm">
-                    {index + 1}
-                  </div>
-                  
-                  {item.imageUrl ? (
-                    <img
-                      src={item.imageUrl}
-                      alt={item.productName}
-                      className="w-14 h-14 rounded-lg object-cover flex-shrink-0"
-                    />
-                  ) : (
-                    <div className="w-14 h-14 rounded-lg bg-gradient-to-br from-primary/10 to-secondary/10 flex items-center justify-center flex-shrink-0">
-                      <Package className="h-6 w-6 text-primary/40" />
-                    </div>
-                  )}
-                  
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-1">
-                      <h4 className="font-medium text-sm leading-tight line-clamp-2">{item.productName}</h4>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-5 w-5 text-muted-foreground hover:text-destructive flex-shrink-0"
-                        onClick={() => removeItem(item.id)}
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
+            {/* Scrollable area - contains items AND suggestions */}
+            <div className="flex-1 overflow-y-auto min-h-0">
+              <div className="p-4 space-y-2">
+                {items.map((item, index) => (
+                  <div
+                    key={item.id}
+                    className="relative flex gap-2.5 p-2.5 rounded-xl border border-border/70 bg-card shadow-sm"
+                  >
+                    {/* Número do item */}
+                    <div className="absolute -top-1.5 -left-1.5 w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center shadow-sm">
+                      {index + 1}
                     </div>
                     
-                    {item.options.length > 0 && (
-                      <GroupedOptionsDisplay 
-                        options={item.options} 
-                        className="mt-0.5"
-                        variant="compact"
+                    {item.imageUrl ? (
+                      <img
+                        src={item.imageUrl}
+                        alt={item.productName}
+                        className="w-14 h-14 rounded-lg object-cover flex-shrink-0"
                       />
+                    ) : (
+                      <div className="w-14 h-14 rounded-lg bg-gradient-to-br from-primary/10 to-secondary/10 flex items-center justify-center flex-shrink-0">
+                        <Package className="h-6 w-6 text-primary/40" />
+                      </div>
                     )}
                     
-                    {item.notes && (
-                      <p className="text-[10px] text-muted-foreground italic mt-0.5 line-clamp-1">
-                        💬 {item.notes}
-                      </p>
-                    )}
-                    
-                    <div className="flex items-center justify-between mt-1.5">
-                      <div className="flex items-center gap-0.5 bg-muted/50 rounded-full p-0.5">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-1">
+                        <h4 className="font-medium text-sm leading-tight line-clamp-2">{item.productName}</h4>
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-6 w-6 rounded-full hover:bg-destructive/10 hover:text-destructive"
-                          onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                          className="h-5 w-5 text-muted-foreground hover:text-destructive flex-shrink-0"
+                          onClick={() => removeItem(item.id)}
                         >
-                          <Minus className="h-3 w-3" />
-                        </Button>
-                        <span className="text-xs w-5 text-center font-bold">{item.quantity}</span>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6 rounded-full hover:bg-primary/10 hover:text-primary"
-                          onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                        >
-                          <Plus className="h-3 w-3" />
+                          <X className="h-3 w-3" />
                         </Button>
                       </div>
-                      <span className="font-bold text-primary text-sm">
-                        R$ {(item.price * item.quantity).toFixed(2)}
-                      </span>
+                      
+                      {item.options.length > 0 && (
+                        <GroupedOptionsDisplay 
+                          options={item.options} 
+                          className="mt-0.5"
+                          variant="compact"
+                        />
+                      )}
+                      
+                      {item.notes && (
+                        <p className="text-[10px] text-muted-foreground italic mt-0.5 line-clamp-1">
+                          💬 {item.notes}
+                        </p>
+                      )}
+                      
+                      <div className="flex items-center justify-between mt-1.5">
+                        <div className="flex items-center gap-0.5 bg-muted/50 rounded-full p-0.5">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 rounded-full hover:bg-destructive/10 hover:text-destructive"
+                            onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                          >
+                            <Minus className="h-3 w-3" />
+                          </Button>
+                          <span className="text-xs w-5 text-center font-bold">{item.quantity}</span>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 rounded-full hover:bg-primary/10 hover:text-primary"
+                            onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                          >
+                            <Plus className="h-3 w-3" />
+                          </Button>
+                        </div>
+                        <span className="font-bold text-primary text-sm">
+                          R$ {(item.price * item.quantity).toFixed(2)}
+                        </span>
+                      </div>
                     </div>
                   </div>
+                ))}
+              </div>
+
+              {suggestedProducts.length > 0 && (
+                <div className="px-4 pb-3 border-t border-border/50 pt-3">
+                  <SuggestedProducts products={suggestedProducts} onAdd={handleAddSuggested} />
                 </div>
-              ))}
+              )}
             </div>
 
-            {suggestedProducts.length > 0 && (
-              <div className="px-4 pb-3 border-t border-border/50 pt-3">
-                <SuggestedProducts products={suggestedProducts} onAdd={handleAddSuggested} />
-              </div>
-            )}
-
-            {/* Footer com resumo e ações */}
-            <div className="border-t border-border bg-gradient-to-b from-card to-muted/30 p-4 space-y-4">
+            {/* Footer com resumo e ações - sempre visível */}
+            <div className="border-t border-border bg-gradient-to-b from-card to-muted/30 p-4 space-y-4 flex-shrink-0">
               {/* Resumo de valores */}
               <div className="bg-card/80 backdrop-blur rounded-xl p-3 space-y-2 border border-border/50">
                 <div className="flex items-center justify-between text-sm">

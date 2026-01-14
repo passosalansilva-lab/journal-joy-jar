@@ -15,14 +15,21 @@ const defaultBranding: CompanyBranding = {
   name: null,
 };
 
-function hexToHsl(hex: string): string {
-  // Remove # if present
-  hex = hex.replace(/^#/, '');
+type HslParts = { h: number; s: number; l: number };
 
-  // Parse hex values
-  const r = parseInt(hex.slice(0, 2), 16) / 255;
-  const g = parseInt(hex.slice(2, 4), 16) / 255;
-  const b = parseInt(hex.slice(4, 6), 16) / 255;
+function clamp(n: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, n));
+}
+
+function parseHexToHslParts(hex: string): HslParts | null {
+  const clean = hex.replace(/^#/, '').trim();
+  if (clean.length !== 6) return null;
+
+  const r = parseInt(clean.slice(0, 2), 16) / 255;
+  const g = parseInt(clean.slice(2, 4), 16) / 255;
+  const b = parseInt(clean.slice(4, 6), 16) / 255;
+
+  if (Number.isNaN(r) || Number.isNaN(g) || Number.isNaN(b)) return null;
 
   const max = Math.max(r, g, b);
   const min = Math.min(r, g, b);
@@ -33,39 +40,72 @@ function hexToHsl(hex: string): string {
   if (max !== min) {
     const d = max - min;
     s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+
     switch (max) {
       case r:
-        h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+        h = (g - b) / d + (g < b ? 6 : 0);
         break;
       case g:
-        h = ((b - r) / d + 2) / 6;
+        h = (b - r) / d + 2;
         break;
       case b:
-        h = ((r - g) / d + 4) / 6;
+        h = (r - g) / d + 4;
         break;
     }
+
+    h /= 6;
   }
 
-  return `${Math.round(h * 360)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`;
+  return {
+    h: Math.round(h * 360),
+    s: Math.round(s * 100),
+    l: Math.round(l * 100),
+  };
 }
 
-function applyColors(branding: CompanyBranding) {
+function toHslVar(parts: HslParts) {
+  return `${parts.h} ${parts.s}% ${parts.l}%`;
+}
+
+function shift(parts: HslParts, opts: { h?: number; s?: number; l?: number }): HslParts {
+  return {
+    h: (parts.h + (opts.h ?? 0) + 360) % 360,
+    s: clamp(parts.s + (opts.s ?? 0), 0, 100),
+    l: clamp(parts.l + (opts.l ?? 0), 0, 100),
+  };
+}
+
+export function applyCompanyBranding(input: Partial<CompanyBranding>) {
   const root = document.documentElement;
-  
-  if (branding.primaryColor) {
-    const primaryHsl = hexToHsl(branding.primaryColor);
-    root.style.setProperty('--primary', primaryHsl);
-    root.style.setProperty('--ring', primaryHsl);
-    root.style.setProperty('--sidebar-primary', primaryHsl);
-    root.style.setProperty('--sidebar-ring', primaryHsl);
+
+  const primaryParts = input.primaryColor ? parseHexToHslParts(input.primaryColor) : null;
+  const secondaryParts = input.secondaryColor ? parseHexToHslParts(input.secondaryColor) : null;
+
+  if (primaryParts) {
+    const primaryVar = toHslVar(primaryParts);
+    const primaryAlt = toHslVar(shift(primaryParts, { h: 14, l: 3 }));
+    const heroAlt = toHslVar(shift(primaryParts, { h: -18, l: -2, s: 4 }));
+
+    root.style.setProperty('--primary', primaryVar);
+    root.style.setProperty('--ring', primaryVar);
+    root.style.setProperty('--sidebar-primary', primaryVar);
+    root.style.setProperty('--sidebar-ring', primaryVar);
+
+    // Keep gradient tokens in sync (many screens use .gradient-primary)
+    root.style.setProperty('--gradient-primary', `linear-gradient(135deg, hsl(${primaryVar}) 0%, hsl(${primaryAlt}) 100%)`);
+    root.style.setProperty('--gradient-hero', `linear-gradient(135deg, hsl(${primaryVar}) 0%, hsl(${heroAlt}) 100%)`);
+
+    // Glow shadow based on primary
+    root.style.setProperty('--shadow-glow', `0 0 32px hsl(${primaryVar} / 0.25)`);
   }
-  
-  if (branding.secondaryColor) {
-    const secondaryHsl = hexToHsl(branding.secondaryColor);
-    root.style.setProperty('--secondary', secondaryHsl);
-    root.style.setProperty('--accent', secondaryHsl);
+
+  if (secondaryParts) {
+    const secondaryVar = toHslVar(secondaryParts);
+    root.style.setProperty('--secondary', secondaryVar);
+    root.style.setProperty('--accent', secondaryVar);
   }
 }
+
 
 export function useCompanyColors(companyId: string | null) {
   const [branding, setBranding] = useState<CompanyBranding>(defaultBranding);
@@ -98,7 +138,7 @@ export function useCompanyColors(companyId: string | null) {
         };
         
         setBranding(companyBranding);
-        applyColors(companyBranding);
+        applyCompanyBranding(companyBranding);
       }
     } catch (error) {
       console.error('Error loading company branding:', error);

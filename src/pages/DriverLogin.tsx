@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
+import { applyCompanyBranding } from '@/hooks/useCompanyColors';
 
 export default function DriverLogin() {
   const navigate = useNavigate();
@@ -15,6 +16,7 @@ export default function DriverLogin() {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [companyName, setCompanyName] = useState<string | null>(null);
+  const [companyLogoUrl, setCompanyLogoUrl] = useState<string | null>(null);
   const [companyLoading, setCompanyLoading] = useState(!!companySlug);
 
   // Carrega nome da empresa se houver slug na URL
@@ -28,7 +30,7 @@ export default function DriverLogin() {
       try {
         const { data: company, error } = await supabase
           .from('companies')
-          .select('name')
+          .select('id, name, logo_url, primary_color, secondary_color')
           .eq('slug', companySlug)
           .maybeSingle();
 
@@ -36,6 +38,13 @@ export default function DriverLogin() {
 
         if (company) {
           setCompanyName(company.name);
+          setCompanyLogoUrl(company.logo_url || null);
+
+          // Aplica branding da empresa já na tela de login
+          applyCompanyBranding({
+            primaryColor: company.primary_color || undefined,
+            secondaryColor: company.secondary_color || undefined,
+          });
         } else {
           toast.error('Empresa não encontrada', {
             description: 'O link de acesso pode estar incorreto.',
@@ -166,64 +175,87 @@ export default function DriverLogin() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary/10 via-background to-primary/5 flex items-center justify-center p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
-            <Truck className="h-8 w-8 text-primary" />
-          </div>
-          <CardTitle className="text-2xl font-display">Área do Entregador</CardTitle>
-          <CardDescription>
-            {companyName ? (
-              <span className="flex items-center justify-center gap-2 mt-2">
-                <Store className="h-4 w-4" />
-                Acesso para <span className="font-medium text-foreground">{companyName}</span>
-              </span>
-            ) : (
-              'Acesse com o email cadastrado pelo estabelecimento'
-            )}
-          </CardDescription>
-        </CardHeader>
+    <div className="min-h-screen bg-background relative overflow-hidden">
+      {/* Ambient background using semantic tokens */}
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,hsl(var(--primary)/0.18)_0%,transparent_55%)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_bottom,hsl(var(--accent)/0.18)_0%,transparent_60%)]" />
 
-        <CardContent>
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                type="email"
-                placeholder="seu@email.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="pl-10"
-                disabled={loading}
-                autoFocus
-                required
-              />
+      <div className="relative min-h-screen flex items-center justify-center p-4">
+        <Card className="w-full max-w-md glass shadow-glow">
+          <CardHeader className="text-center">
+            <div className="mx-auto mb-4">
+              {companyLogoUrl ? (
+                <div className="h-16 w-16 rounded-2xl overflow-hidden border border-border/60 bg-card shadow-card">
+                  <img
+                    src={companyLogoUrl}
+                    alt={companyName ? `Logo ${companyName}` : 'Logo da empresa'}
+                    className="h-full w-full object-cover"
+                    loading="lazy"
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).src = '/pwa-192x192.png';
+                    }}
+                  />
+                </div>
+              ) : (
+                <div className="w-16 h-16 rounded-2xl gradient-primary flex items-center justify-center shadow-glow">
+                  <Truck className="h-8 w-8 text-primary-foreground" />
+                </div>
+              )}
             </div>
 
-            <Button
-              type="submit"
-              className="w-full gradient-primary text-primary-foreground"
-              disabled={loading}
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Entrando...
-                </>
+            <CardTitle className="text-2xl font-display">Área do Entregador</CardTitle>
+            <CardDescription>
+              {companyName ? (
+                <span className="flex items-center justify-center gap-2 mt-2">
+                  <Store className="h-4 w-4" />
+                  Acesso para <span className="font-medium text-foreground">{companyName}</span>
+                </span>
               ) : (
-                'Entrar'
+                'Acesse com o email cadastrado pelo estabelecimento'
               )}
-            </Button>
-          </form>
+            </CardDescription>
+          </CardHeader>
 
-          {!companySlug && (
-            <p className="text-xs text-muted-foreground text-center mt-6">
-              Se você trabalha em mais de uma empresa, peça o link de acesso específico ao estabelecimento.
-            </p>
-          )}
-        </CardContent>
-      </Card>
+          <CardContent>
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="email"
+                  placeholder="seu@email.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="pl-10"
+                  disabled={loading}
+                  autoFocus
+                  required
+                />
+              </div>
+
+              <Button
+                type="submit"
+                className="w-full gradient-primary text-primary-foreground hover-lift"
+                disabled={loading}
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Entrando...
+                  </>
+                ) : (
+                  'Entrar'
+                )}
+              </Button>
+            </form>
+
+            {!companySlug && (
+              <p className="text-xs text-muted-foreground text-center mt-6">
+                Se você trabalha em mais de uma empresa, peça o link de acesso específico ao estabelecimento.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

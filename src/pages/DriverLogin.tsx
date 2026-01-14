@@ -170,6 +170,11 @@ export default function DriverLogin() {
           description: firstName ? `Bem-vindo, ${firstName}!` : 'Bem-vindo!',
         });
 
+        // Save company slug for logout redirect
+        if (companySlug) {
+          localStorage.setItem('driver_company_slug', companySlug);
+        }
+
         navigate('/driver', { replace: true });
         return;
       }

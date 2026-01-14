@@ -140,6 +140,7 @@ export default function DriverDashboard() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [driver, setDriver] = useState<any>(null);
+  const [companySlug, setCompanySlug] = useState<string | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [pendingOffers, setPendingOffers] = useState<OrderOffer[]>([]);
   const [locationStatus, setLocationStatus] = useState<'pending' | 'granted' | 'denied' | 'unavailable'>('pending');
@@ -539,13 +540,31 @@ export default function DriverDashboard() {
         console.log('No active driver found for user:', user.id);
         toast.error('Você não está cadastrado como entregador ativo');
         await signOut();
-        navigate('/driver/login');
+        // Try to get slug from localStorage
+        const savedSlug = localStorage.getItem('driver_company_slug');
+        if (savedSlug) {
+          navigate(`/driver/login/${savedSlug}`);
+        } else {
+          navigate('/driver/login');
+        }
         return;
       }
 
       console.log('Driver loaded:', driverData);
       setDriver(driverData);
       driverIdRef.current = driverData.id;
+
+      // Load company slug for logout redirect
+      const { data: companyData } = await driverSupabase
+        .from('companies')
+        .select('slug')
+        .eq('id', driverData.company_id)
+        .maybeSingle();
+      
+      if (companyData?.slug) {
+        setCompanySlug(companyData.slug);
+        localStorage.setItem('driver_company_slug', companyData.slug);
+      }
 
       await loadAssignedOrders(driverData.id);
     } catch (error) {
@@ -940,8 +959,17 @@ export default function DriverDashboard() {
                 size="icon"
                 onClick={async () => {
                   stopLocationTracking();
+                  // Get slug before signing out (fallback to localStorage)
+                  const slugToUse = companySlug || localStorage.getItem('driver_company_slug');
                   await signOut();
-                  navigate('/driver/login');
+                  // Clear stored slug after logout
+                  localStorage.removeItem('driver_company_slug');
+                  // Redirect to company-specific login if slug available
+                  if (slugToUse) {
+                    navigate(`/driver/login/${slugToUse}`);
+                  } else {
+                    navigate('/driver/login');
+                  }
                 }}
                 title="Sair"
               >

@@ -58,6 +58,7 @@ import MyOrders from "./pages/MyOrders";
 import OrderTracking from "./pages/OrderTracking";
 import OrderHistory from "./pages/OrderHistory";
 import DriverLogin from "./pages/DriverLogin";
+import DriverTokenAccess from "./pages/DriverTokenAccess";
 import DriverDashboard from "./pages/DriverDashboard";
 import SuperAdminSetup from "./pages/SuperAdminSetup";
 import StaffLogin from "./pages/StaffLogin";
@@ -521,6 +522,7 @@ const App = () => (
               />
               <Route path="/driver/login" element={<DriverLogin />} />
               <Route path="/driver/login/:companySlug" element={<DriverLogin />} />
+              <Route path="/driver/access/:token" element={<DriverTokenAccess />} />
               <Route path="/staff/login" element={<StaffLogin />} />
               <Route
                 path="/driver"

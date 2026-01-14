@@ -24,6 +24,8 @@ import {
   Copy,
   Link,
   ExternalLink,
+  QrCode,
+  RefreshCw,
 } from 'lucide-react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { FeatureGate } from '@/components/layout/FeatureGate';
@@ -103,6 +105,8 @@ interface Driver {
   fixed_salary?: number;
   per_delivery_fee?: number;
   pending_earnings?: number;
+  // Access token for direct login
+  access_token?: string;
 }
 
 interface Order {
@@ -168,6 +172,11 @@ export default function DriversManagement() {
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentDescription, setPaymentDescription] = useState('');
+  
+  // QR Code dialog states
+  const [showQrCodeDialog, setShowQrCodeDialog] = useState(false);
+  const [qrCodeDriver, setQrCodeDriver] = useState<Driver | null>(null);
+  const [generatingToken, setGeneratingToken] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -587,6 +596,80 @@ export default function DriversManagement() {
     toast({ title: 'Link copiado!', description: 'Envie para seus entregadores acessarem.' });
   };
 
+  const generateDriverToken = async (driver: Driver): Promise<string | null> => {
+    try {
+      // Generate a URL-safe random token
+      const array = new Uint8Array(24);
+      crypto.getRandomValues(array);
+      const token = Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+      
+      const { error } = await supabase
+        .from('delivery_drivers')
+        .update({ access_token: token } as any)
+        .eq('id', driver.id);
+      
+      if (error) throw error;
+      
+      // Update local state
+      setDrivers(prev => prev.map(d => 
+        d.id === driver.id ? { ...d, access_token: token } : d
+      ));
+      
+      return token;
+    } catch (error: any) {
+      console.error('Error generating token:', error);
+      toast({ title: 'Erro ao gerar token', description: error.message, variant: 'destructive' });
+      return null;
+    }
+  };
+
+  const copyDriverAccessLink = async (driver: Driver) => {
+    let token = driver.access_token;
+    
+    if (!token) {
+      setGeneratingToken(true);
+      token = await generateDriverToken(driver);
+      setGeneratingToken(false);
+    }
+    
+    if (token) {
+      const accessLink = `${window.location.origin}/driver/access/${token}`;
+      navigator.clipboard.writeText(accessLink);
+      toast({ 
+        title: 'Link único copiado!', 
+        description: `Envie para ${driver.driver_name || 'o entregador'} acessar diretamente.` 
+      });
+    }
+  };
+
+  const openQrCodeDialog = async (driver: Driver) => {
+    if (!driver.access_token) {
+      setGeneratingToken(true);
+      const token = await generateDriverToken(driver);
+      setGeneratingToken(false);
+      if (token) {
+        setQrCodeDriver({ ...driver, access_token: token });
+        setShowQrCodeDialog(true);
+      }
+    } else {
+      setQrCodeDriver(driver);
+      setShowQrCodeDialog(true);
+    }
+  };
+
+  const regenerateDriverToken = async () => {
+    if (!qrCodeDriver) return;
+    
+    setGeneratingToken(true);
+    const token = await generateDriverToken(qrCodeDriver);
+    setGeneratingToken(false);
+    
+    if (token) {
+      setQrCodeDriver({ ...qrCodeDriver, access_token: token });
+      toast({ title: 'Novo link gerado!', description: 'O link anterior foi invalidado.' });
+    }
+  };
+
   const availableDrivers = drivers.filter((d) => d.is_available && d.is_active);
   const ordersWithoutDriver = orders.filter((o) => !o.delivery_driver_id);
   const ordersWithDriver = orders.filter((o) => o.delivery_driver_id);
@@ -860,6 +943,14 @@ export default function DriversManagement() {
                               >
                                 <DollarSign className="h-4 w-4 mr-2" />
                                 Registrar Pagamento
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => copyDriverAccessLink(driver)}>
+                                <Link className="h-4 w-4 mr-2" />
+                                Copiar Link de Acesso
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => openQrCodeDialog(driver)}>
+                                <QrCode className="h-4 w-4 mr-2" />
+                                Ver QR Code
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 onClick={() => {
@@ -1732,6 +1823,66 @@ export default function DriversManagement() {
         driver={selectedDriver}
         companyId={companyId || ''}
       />
+
+      {/* QR Code Dialog */}
+      <Dialog open={showQrCodeDialog} onOpenChange={setShowQrCodeDialog}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <QrCode className="h-5 w-5" />
+              QR Code de Acesso
+            </DialogTitle>
+          </DialogHeader>
+          {qrCodeDriver && (
+            <div className="space-y-4 py-4">
+              <div className="text-center">
+                <p className="font-medium">{qrCodeDriver.driver_name || 'Entregador'}</p>
+                <p className="text-sm text-muted-foreground">{qrCodeDriver.email}</p>
+              </div>
+              
+              <div className="flex justify-center">
+                <div className="p-4 bg-white rounded-xl shadow-inner">
+                  <img 
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(`${window.location.origin}/driver/access/${qrCodeDriver.access_token}`)}`}
+                    alt="QR Code de acesso"
+                    className="w-48 h-48"
+                  />
+                </div>
+              </div>
+              
+              <p className="text-xs text-center text-muted-foreground">
+                O entregador pode escanear este QR Code para acessar diretamente, sem precisar digitar email.
+              </p>
+              
+              <div className="flex gap-2">
+                <Button 
+                  variant="outline" 
+                  className="flex-1"
+                  onClick={() => {
+                    const link = `${window.location.origin}/driver/access/${qrCodeDriver.access_token}`;
+                    navigator.clipboard.writeText(link);
+                    toast({ title: 'Link copiado!' });
+                  }}
+                >
+                  <Copy className="h-4 w-4 mr-2" />
+                  Copiar Link
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={regenerateDriverToken}
+                  disabled={generatingToken}
+                >
+                  {generatingToken ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }

@@ -618,7 +618,7 @@ export default function PublicKDS() {
             </div>
             {orders.filter(o => getOrderUrgency(o.created_at) === 'urgent').length > 0 && (
               <div className={cn(
-                "flex items-center gap-2 px-4 py-2 rounded-xl animate-pulse",
+                "flex items-center gap-2 px-4 py-2 rounded-xl",
                 isDarkMode ? "bg-red-500/20" : "bg-red-100"
               )}>
                 <Timer className={isDarkMode ? "h-5 w-5 text-red-400" : "h-5 w-5 text-red-600"} />

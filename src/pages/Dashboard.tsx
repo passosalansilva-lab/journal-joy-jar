@@ -23,6 +23,10 @@ import {
   Lightbulb,
   UtensilsCrossed,
   RefreshCw,
+  Trophy,
+  Medal,
+  Crown,
+  Flame,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -544,26 +548,103 @@ export default function Dashboard() {
               </Card>
             )}
 
-            {/* Top Products */}
+            {/* Top Products - Ranking Bonito */}
             {topProducts.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="font-display">Produtos Mais Vendidos</CardTitle>
+              <Card className="overflow-hidden">
+                <CardHeader className="bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-red-500/10 border-b">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 shadow-lg">
+                      <Trophy className="h-5 w-5 text-white" />
+                    </div>
+                    <div>
+                      <CardTitle className="font-display">Ranking de Vendas</CardTitle>
+                      <p className="text-xs text-muted-foreground mt-0.5">Produtos mais pedidos</p>
+                    </div>
+                    <Flame className="h-5 w-5 text-orange-500 ml-auto animate-pulse" />
+                  </div>
                 </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {topProducts.map((product, index) => (
-                      <div key={product.name} className="flex items-center gap-3">
-                        <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
-                          {index + 1}
+                <CardContent className="p-0">
+                  <div className="divide-y divide-border">
+                    {topProducts.map((product, index) => {
+                      // Cores e estilos baseados na posição
+                      const rankStyles = {
+                        0: {
+                          bg: 'bg-gradient-to-r from-amber-500/20 via-yellow-500/10 to-transparent',
+                          badge: 'bg-gradient-to-br from-amber-400 to-yellow-500 shadow-amber-500/30',
+                          icon: Crown,
+                          textColor: 'text-amber-600 dark:text-amber-400',
+                          label: '1º',
+                        },
+                        1: {
+                          bg: 'bg-gradient-to-r from-slate-400/20 via-gray-300/10 to-transparent',
+                          badge: 'bg-gradient-to-br from-slate-300 to-gray-400 shadow-slate-400/30',
+                          icon: Medal,
+                          textColor: 'text-slate-600 dark:text-slate-400',
+                          label: '2º',
+                        },
+                        2: {
+                          bg: 'bg-gradient-to-r from-orange-600/20 via-amber-700/10 to-transparent',
+                          badge: 'bg-gradient-to-br from-orange-500 to-amber-700 shadow-orange-600/30',
+                          icon: Medal,
+                          textColor: 'text-orange-600 dark:text-orange-400',
+                          label: '3º',
+                        },
+                      };
+                      
+                      const style = rankStyles[index as keyof typeof rankStyles];
+                      const RankIcon = style?.icon;
+                      
+                      return (
+                        <div 
+                          key={product.name} 
+                          className={`flex items-center gap-4 p-4 transition-all hover:bg-muted/30 ${style?.bg || ''}`}
+                        >
+                          {/* Medalha/Posição */}
+                          {index < 3 && RankIcon ? (
+                            <div className={`relative w-10 h-10 rounded-xl ${style.badge} shadow-lg flex items-center justify-center`}>
+                              <RankIcon className="h-5 w-5 text-white" />
+                              <span className="absolute -bottom-1 -right-1 text-[10px] font-black text-white bg-black/40 rounded-full w-4 h-4 flex items-center justify-center">
+                                {index + 1}
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center">
+                              <span className="text-sm font-bold text-muted-foreground">{index + 1}º</span>
+                            </div>
+                          )}
+                          
+                          {/* Informações do Produto */}
+                          <div className="flex-1 min-w-0">
+                            <p className={`font-semibold truncate ${index < 3 ? style?.textColor : ''}`}>
+                              {product.name}
+                            </p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className="text-xs text-muted-foreground">
+                                {product.quantity} vendidos
+                              </span>
+                              {index === 0 && (
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 border-amber-500/50 text-amber-600 dark:text-amber-400">
+                                  🔥 Campeão
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                          
+                          {/* Receita */}
+                          <div className="text-right">
+                            <p className={`font-bold ${index < 3 ? style?.textColor : 'text-foreground'}`}>
+                              {formatCurrency(product.revenue)}
+                            </p>
+                            {index < 3 && (
+                              <div className="flex items-center justify-end gap-1 mt-0.5">
+                                <TrendingUp className="h-3 w-3 text-green-500" />
+                                <span className="text-[10px] text-green-600">top {index + 1}</span>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium truncate">{product.name}</p>
-                          <p className="text-sm text-muted-foreground">{product.quantity} vendidos</p>
-                        </div>
-                        <span className="text-sm font-medium">{formatCurrency(product.revenue)}</span>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </CardContent>
               </Card>

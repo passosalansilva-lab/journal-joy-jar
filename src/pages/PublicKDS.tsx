@@ -24,7 +24,7 @@ import {
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
-import { motion, AnimatePresence } from "framer-motion";
+
 
 const KDS_THEME_KEY = "kds-theme-mode";
 const KDS_SOUND_ENABLED_KEY = "kds-sound-enabled";
@@ -404,12 +404,7 @@ export default function PublicKDS() {
     const StatusIcon = statusConfig[status].icon;
     
     return (
-      <motion.div
-        layout
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.9, y: -20 }}
-        transition={{ duration: 0.3 }}
+      <div
         className={cn(
           "rounded-xl overflow-hidden shadow-xl",
           isDarkMode ? "bg-slate-800" : "bg-white",
@@ -549,7 +544,7 @@ export default function PublicKDS() {
             </Button>
           </div>
         )}
-      </motion.div>
+      </div>
     );
   };
 
@@ -794,11 +789,9 @@ export default function PublicKDS() {
             </div>
             
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-              <AnimatePresence mode="popLayout">
-                {confirmedOrders.map((order) => (
-                  <OrderTicket key={order.id} order={order} status="confirmed" />
-                ))}
-              </AnimatePresence>
+              {confirmedOrders.map((order) => (
+                <OrderTicket key={order.id} order={order} status="confirmed" />
+              ))}
             </div>
 
             {confirmedOrders.length === 0 && (
@@ -825,11 +818,9 @@ export default function PublicKDS() {
             </div>
             
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-              <AnimatePresence mode="popLayout">
-                {preparingOrders.map((order) => (
-                  <OrderTicket key={order.id} order={order} status="preparing" />
-                ))}
-              </AnimatePresence>
+              {preparingOrders.map((order) => (
+                <OrderTicket key={order.id} order={order} status="preparing" />
+              ))}
             </div>
 
             {preparingOrders.length === 0 && (

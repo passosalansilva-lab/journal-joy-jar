@@ -15,7 +15,9 @@ import {
   AlertTriangle,
   Hand,
   MousePointer2,
-  Utensils
+  Utensils,
+  Sun,
+  Moon
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -65,6 +67,7 @@ export default function PublicKDS() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [interactionMode, setInteractionMode] = useState(true); // Botões habilitados por padrão
+  const [isDarkMode, setIsDarkMode] = useState(true); // Tema escuro por padrão
 
   // Update clock every second for more precision
   useEffect(() => {
@@ -288,19 +291,36 @@ export default function PublicKDS() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-        <RefreshCw className="h-12 w-12 animate-spin text-slate-400" />
+      <div className={cn(
+        "min-h-screen flex items-center justify-center",
+        isDarkMode ? "bg-slate-950" : "bg-slate-100"
+      )}>
+        <RefreshCw className={cn(
+          "h-12 w-12 animate-spin",
+          isDarkMode ? "text-slate-400" : "text-slate-600"
+        )} />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
-        <div className="bg-slate-900 rounded-2xl p-8 text-center border border-slate-800 max-w-md">
+      <div className={cn(
+        "min-h-screen flex items-center justify-center p-4",
+        isDarkMode ? "bg-slate-950" : "bg-slate-100"
+      )}>
+        <div className={cn(
+          "rounded-2xl p-8 text-center max-w-md",
+          isDarkMode 
+            ? "bg-slate-900 border border-slate-800" 
+            : "bg-white border border-slate-200 shadow-lg"
+        )}>
           <AlertTriangle className="h-16 w-16 text-red-500 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-white mb-2">Acesso Negado</h2>
-          <p className="text-slate-400">{error}</p>
+          <h2 className={cn(
+            "text-2xl font-bold mb-2",
+            isDarkMode ? "text-white" : "text-slate-900"
+          )}>Acesso Negado</h2>
+          <p className={isDarkMode ? "text-slate-400" : "text-slate-600"}>{error}</p>
         </div>
       </div>
     );
@@ -320,7 +340,8 @@ export default function PublicKDS() {
         exit={{ opacity: 0, scale: 0.9, y: -20 }}
         transition={{ duration: 0.3 }}
         className={cn(
-          "bg-white rounded-xl overflow-hidden shadow-xl",
+          "rounded-xl overflow-hidden shadow-xl",
+          isDarkMode ? "bg-slate-800" : "bg-white",
           urgency === 'urgent' && "ring-4 ring-red-500 animate-pulse",
           urgency === 'warning' && "ring-2 ring-amber-500"
         )}
@@ -355,27 +376,47 @@ export default function PublicKDS() {
         </div>
 
         {/* Customer Name */}
-        <div className="px-4 py-2 bg-slate-100 border-b border-slate-200">
-          <p className="font-semibold text-slate-800 truncate">
+        <div className={cn(
+          "px-4 py-2 border-b",
+          isDarkMode 
+            ? "bg-slate-700 border-slate-600" 
+            : "bg-slate-100 border-slate-200"
+        )}>
+          <p className={cn(
+            "font-semibold truncate",
+            isDarkMode ? "text-white" : "text-slate-800"
+          )}>
             {order.customer_name}
           </p>
         </div>
 
         {/* Order Items */}
-        <div className="p-4 space-y-3 bg-white">
+        <div className={cn(
+          "p-4 space-y-3",
+          isDarkMode ? "bg-slate-800" : "bg-white"
+        )}>
           {order.order_items
             .filter((item) => item.requires_preparation)
             .map((item) => (
               <div key={item.id} className="flex gap-3">
-                <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-slate-900 flex items-center justify-center">
+                <div className={cn(
+                  "flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center",
+                  isDarkMode ? "bg-slate-600" : "bg-slate-900"
+                )}>
                   <span className="text-white font-bold text-lg">{item.quantity}</span>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-bold text-slate-900 text-base leading-tight">
+                  <p className={cn(
+                    "font-bold text-base leading-tight",
+                    isDarkMode ? "text-white" : "text-slate-900"
+                  )}>
                     {item.product_name}
                   </p>
                   {formatOptions(item.options).map((group, i) => (
-                    <p key={i} className="text-sm text-slate-600 leading-tight mt-0.5">
+                    <p key={i} className={cn(
+                      "text-sm leading-tight mt-0.5",
+                      isDarkMode ? "text-slate-300" : "text-slate-600"
+                    )}>
                       {group.groupName ? (
                         <><span className="font-medium">{group.groupName}:</span> {group.items.join(', ')}</>
                       ) : (
@@ -397,7 +438,7 @@ export default function PublicKDS() {
 
         {/* Order Notes */}
         {order.notes && (
-          <div className="px-4 pb-3">
+          <div className={cn("px-4 pb-3", isDarkMode ? "bg-slate-800" : "bg-white")}>
             <div className="p-2 bg-amber-50 rounded-lg border border-amber-200">
               <p className="text-sm text-amber-800 font-medium">
                 📝 {order.notes}
@@ -408,7 +449,12 @@ export default function PublicKDS() {
 
         {/* Action Button */}
         {interactionMode && (
-          <div className="p-3 bg-slate-50 border-t border-slate-200">
+          <div className={cn(
+            "p-3 border-t",
+            isDarkMode 
+              ? "bg-slate-700 border-slate-600" 
+              : "bg-slate-50 border-slate-200"
+          )}>
             <Button
               className={cn(
                 "w-full h-14 text-lg font-bold rounded-xl transition-all active:scale-95",
@@ -437,9 +483,17 @@ export default function PublicKDS() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950">
+    <div className={cn(
+      "min-h-screen transition-colors duration-300",
+      isDarkMode ? "bg-slate-950" : "bg-slate-100"
+    )}>
       {/* Header */}
-      <header className="bg-slate-900 border-b border-slate-800 px-6 py-4">
+      <header className={cn(
+        "border-b px-6 py-4 transition-colors duration-300",
+        isDarkMode 
+          ? "bg-slate-900 border-slate-800" 
+          : "bg-white border-slate-200 shadow-sm"
+      )}>
         <div className="flex items-center justify-between">
           {/* Left: Logo & Title */}
           <div className="flex items-center gap-4">
@@ -447,37 +501,63 @@ export default function PublicKDS() {
               <img 
                 src={company.logo_url} 
                 alt={company.name} 
-                className="h-12 w-12 rounded-xl object-cover border-2 border-slate-700"
+                className={cn(
+                  "h-12 w-12 rounded-xl object-cover border-2",
+                  isDarkMode ? "border-slate-700" : "border-slate-200"
+                )}
               />
             )}
             <div>
-              <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+              <h1 className={cn(
+                "text-2xl font-bold flex items-center gap-2",
+                isDarkMode ? "text-white" : "text-slate-900"
+              )}>
                 <ChefHat className="h-7 w-7 text-orange-500" />
                 Cozinha
               </h1>
-              <p className="text-sm text-slate-400">{company?.name}</p>
+              <p className={isDarkMode ? "text-sm text-slate-400" : "text-sm text-slate-600"}>
+                {company?.name}
+              </p>
             </div>
           </div>
 
           {/* Center: Stats */}
           <div className="hidden md:flex items-center gap-6">
-            <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-500/20">
-              <Clock className="h-5 w-5 text-blue-400" />
-              <span className="text-2xl font-bold text-blue-400">{confirmedOrders.length}</span>
-              <span className="text-sm text-blue-300">aguardando</span>
+            <div className={cn(
+              "flex items-center gap-2 px-4 py-2 rounded-xl",
+              isDarkMode ? "bg-blue-500/20" : "bg-blue-100"
+            )}>
+              <Clock className={isDarkMode ? "h-5 w-5 text-blue-400" : "h-5 w-5 text-blue-600"} />
+              <span className={cn(
+                "text-2xl font-bold",
+                isDarkMode ? "text-blue-400" : "text-blue-600"
+              )}>{confirmedOrders.length}</span>
+              <span className={isDarkMode ? "text-sm text-blue-300" : "text-sm text-blue-600"}>aguardando</span>
             </div>
-            <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-orange-500/20">
-              <ChefHat className="h-5 w-5 text-orange-400" />
-              <span className="text-2xl font-bold text-orange-400">{preparingOrders.length}</span>
-              <span className="text-sm text-orange-300">preparando</span>
+            <div className={cn(
+              "flex items-center gap-2 px-4 py-2 rounded-xl",
+              isDarkMode ? "bg-orange-500/20" : "bg-orange-100"
+            )}>
+              <ChefHat className={isDarkMode ? "h-5 w-5 text-orange-400" : "h-5 w-5 text-orange-600"} />
+              <span className={cn(
+                "text-2xl font-bold",
+                isDarkMode ? "text-orange-400" : "text-orange-600"
+              )}>{preparingOrders.length}</span>
+              <span className={isDarkMode ? "text-sm text-orange-300" : "text-sm text-orange-600"}>preparando</span>
             </div>
             {orders.filter(o => getOrderUrgency(o.created_at) === 'urgent').length > 0 && (
-              <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-red-500/20 animate-pulse">
-                <Timer className="h-5 w-5 text-red-400" />
-                <span className="text-2xl font-bold text-red-400">
+              <div className={cn(
+                "flex items-center gap-2 px-4 py-2 rounded-xl animate-pulse",
+                isDarkMode ? "bg-red-500/20" : "bg-red-100"
+              )}>
+                <Timer className={isDarkMode ? "h-5 w-5 text-red-400" : "h-5 w-5 text-red-600"} />
+                <span className={cn(
+                  "text-2xl font-bold",
+                  isDarkMode ? "text-red-400" : "text-red-600"
+                )}>
                   {orders.filter(o => getOrderUrgency(o.created_at) === 'urgent').length}
                 </span>
-                <span className="text-sm text-red-300">urgentes</span>
+                <span className={isDarkMode ? "text-sm text-red-300" : "text-sm text-red-600"}>urgentes</span>
               </div>
             )}
           </div>
@@ -485,13 +565,35 @@ export default function PublicKDS() {
           {/* Right: Clock & Controls */}
           <div className="flex items-center gap-3">
             <div className="text-right mr-2">
-              <p className="text-3xl font-mono font-bold text-white">
+              <p className={cn(
+                "text-3xl font-mono font-bold",
+                isDarkMode ? "text-white" : "text-slate-900"
+              )}>
                 {currentTime.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
               </p>
-              <p className="text-xs text-slate-500">
+              <p className={isDarkMode ? "text-xs text-slate-500" : "text-xs text-slate-500"}>
                 {currentTime.toLocaleDateString("pt-BR", { weekday: 'short', day: '2-digit', month: 'short' })}
               </p>
             </div>
+            
+            {/* Theme Toggle */}
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setIsDarkMode(!isDarkMode)}
+              className={cn(
+                isDarkMode 
+                  ? "border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800" 
+                  : "border-slate-300 text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+              )}
+              title={isDarkMode ? "Mudar para tema claro" : "Mudar para tema escuro"}
+            >
+              {isDarkMode ? (
+                <Sun className="h-4 w-4" />
+              ) : (
+                <Moon className="h-4 w-4" />
+              )}
+            </Button>
             
             {/* Interaction Mode Toggle */}
             <Button
@@ -502,7 +604,9 @@ export default function PublicKDS() {
                 "gap-2",
                 interactionMode 
                   ? "bg-green-600 hover:bg-green-700 text-white" 
-                  : "border-slate-600 text-slate-400 hover:text-white"
+                  : isDarkMode
+                    ? "border-slate-600 text-slate-400 hover:text-white"
+                    : "border-slate-300 text-slate-600 hover:text-slate-900"
               )}
               title={interactionMode ? "Clique para desabilitar botões (modo TV)" : "Clique para habilitar botões (modo Tablet)"}
             >
@@ -523,7 +627,12 @@ export default function PublicKDS() {
               variant="outline" 
               size="icon" 
               onClick={fetchOrders}
-              className="border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800"
+              className={cn(
+                isDarkMode 
+                  ? "border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800" 
+                  : "border-slate-300 text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+              )}
+              title="Atualizar pedidos"
             >
               <RefreshCw className="h-4 w-4" />
             </Button>
@@ -531,7 +640,12 @@ export default function PublicKDS() {
               variant="outline" 
               size="icon" 
               onClick={toggleFullscreen}
-              className="border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800"
+              className={cn(
+                isDarkMode 
+                  ? "border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800" 
+                  : "border-slate-300 text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+              )}
+              title={isFullscreen ? "Sair da tela cheia" : "Tela cheia"}
             >
               {isFullscreen ? (
                 <Minimize2 className="h-4 w-4" />
@@ -544,14 +658,31 @@ export default function PublicKDS() {
       </header>
 
       {/* Mobile Stats */}
-      <div className="md:hidden flex items-center justify-center gap-4 p-3 bg-slate-900/50 border-b border-slate-800">
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-500/20">
-          <Clock className="h-4 w-4 text-blue-400" />
-          <span className="text-lg font-bold text-blue-400">{confirmedOrders.length}</span>
+      <div className={cn(
+        "md:hidden flex items-center justify-center gap-4 p-3 border-b",
+        isDarkMode 
+          ? "bg-slate-900/50 border-slate-800" 
+          : "bg-white/50 border-slate-200"
+      )}>
+        <div className={cn(
+          "flex items-center gap-2 px-3 py-1.5 rounded-lg",
+          isDarkMode ? "bg-blue-500/20" : "bg-blue-100"
+        )}>
+          <Clock className={isDarkMode ? "h-4 w-4 text-blue-400" : "h-4 w-4 text-blue-600"} />
+          <span className={cn(
+            "text-lg font-bold",
+            isDarkMode ? "text-blue-400" : "text-blue-600"
+          )}>{confirmedOrders.length}</span>
         </div>
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-orange-500/20">
-          <ChefHat className="h-4 w-4 text-orange-400" />
-          <span className="text-lg font-bold text-orange-400">{preparingOrders.length}</span>
+        <div className={cn(
+          "flex items-center gap-2 px-3 py-1.5 rounded-lg",
+          isDarkMode ? "bg-orange-500/20" : "bg-orange-100"
+        )}>
+          <ChefHat className={isDarkMode ? "h-4 w-4 text-orange-400" : "h-4 w-4 text-orange-600"} />
+          <span className={cn(
+            "text-lg font-bold",
+            isDarkMode ? "text-orange-400" : "text-orange-600"
+          )}>{preparingOrders.length}</span>
         </div>
       </div>
 
@@ -565,7 +696,9 @@ export default function PublicKDS() {
                 <Clock className="h-5 w-5 text-white" />
                 <span className="text-lg font-bold text-white">Aguardando</span>
               </div>
-              <span className="text-slate-500 text-sm">{confirmedOrders.length} pedidos</span>
+              <span className={isDarkMode ? "text-slate-500 text-sm" : "text-slate-600 text-sm"}>
+                {confirmedOrders.length} pedidos
+              </span>
             </div>
             
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
@@ -577,7 +710,10 @@ export default function PublicKDS() {
             </div>
 
             {confirmedOrders.length === 0 && (
-              <div className="text-center py-16 text-slate-600">
+              <div className={cn(
+                "text-center py-16",
+                isDarkMode ? "text-slate-600" : "text-slate-400"
+              )}>
                 <Clock className="h-16 w-16 mx-auto mb-3 opacity-30" />
                 <p className="text-lg">Nenhum pedido aguardando</p>
               </div>
@@ -591,7 +727,9 @@ export default function PublicKDS() {
                 <ChefHat className="h-5 w-5 text-white" />
                 <span className="text-lg font-bold text-white">Em Preparo</span>
               </div>
-              <span className="text-slate-500 text-sm">{preparingOrders.length} pedidos</span>
+              <span className={isDarkMode ? "text-slate-500 text-sm" : "text-slate-600 text-sm"}>
+                {preparingOrders.length} pedidos
+              </span>
             </div>
             
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
@@ -603,7 +741,10 @@ export default function PublicKDS() {
             </div>
 
             {preparingOrders.length === 0 && (
-              <div className="text-center py-16 text-slate-600">
+              <div className={cn(
+                "text-center py-16",
+                isDarkMode ? "text-slate-600" : "text-slate-400"
+              )}>
                 <ChefHat className="h-16 w-16 mx-auto mb-3 opacity-30" />
                 <p className="text-lg">Nenhum pedido em preparo</p>
               </div>

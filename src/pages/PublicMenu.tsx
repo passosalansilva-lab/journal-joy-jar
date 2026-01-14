@@ -321,9 +321,20 @@ function PublicMenuContent() {
           
           const data = response.data;
           
-          // If needs customer data, show the customer modal
+          console.log('[PublicMenu] check-table-by-number response:', data);
+          
+          // Check for error in response body
+          if (data.error) {
+            console.error('Error in response:', data.error);
+            setTableSessionValid(false);
+            setTableSessionError(data.message || 'Erro ao verificar mesa.');
+            setCheckingTableSession(false);
+            return;
+          }
+          
+          // If needs customer data, show the customer modal for self-service opening
           if (data.needsCustomerData) {
-            console.log('No active session - showing customer data modal');
+            console.log('[PublicMenu] No active session - showing customer data modal for self-service');
             setPendingTableNumber(data.tableNumber);
             setShowTableCustomerModal(true);
             setCheckingTableSession(false);
@@ -347,7 +358,8 @@ function PublicMenuContent() {
             setTableSessionError(null);
             setTableSessionValid(true);
           } else {
-            // No active session - show message
+            // No active session and no needsCustomerData flag - unexpected state
+            console.warn('[PublicMenu] Unexpected response state:', data);
             setTableSessionValid(false);
             setTableSessionError(data.message || 'Mesa não está aberta. Chame o garçom.');
           }
@@ -1608,17 +1620,31 @@ function PublicMenuContent() {
                 </div>
               </div>
               <div className="flex gap-2">
+                {/* Allow customer to open the table themselves */}
+                {tableNumber && (
+                  <Button
+                    size="sm"
+                    variant="default"
+                    className="flex-1 text-xs"
+                    onClick={() => {
+                      setPendingTableNumber(tableNumber);
+                      setShowTableCustomerModal(true);
+                      setTableSessionError(null);
+                    }}
+                  >
+                    Abrir mesa
+                  </Button>
+                )}
                 <Button
                   size="sm"
                   variant="outline"
                   className="flex-1 text-xs"
                   onClick={() => {
-                    // Clear current session and reload to try scanning again
                     sessionStorage.removeItem('tableSessionToken');
                     window.location.reload();
                   }}
                 >
-                  Reescanear QR Code
+                  Reescanear QR
                 </Button>
                 <Button
                   size="sm"

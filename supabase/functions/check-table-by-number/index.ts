@@ -134,9 +134,14 @@ Deno.serve(async (req) => {
       
       if (createError) {
         console.error('Error creating session:', createError)
+        // Return a user-friendly error (200 status to avoid invoke error handling)
         return new Response(
-          JSON.stringify({ error: 'Error creating session' }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          JSON.stringify({ 
+            hasActiveSession: false,
+            error: 'session_creation_failed',
+            message: 'Erro ao abrir a mesa. Por favor, tente novamente.'
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
       

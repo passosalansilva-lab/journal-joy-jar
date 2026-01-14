@@ -406,7 +406,7 @@ function PublicMenuContent() {
 
       if (response.error) {
         console.error('Error creating session:', response.error);
-        toast.error('Erro ao abrir mesa. Tente novamente.');
+        toast.error(response.error.message || 'Erro ao abrir mesa. Tente novamente.');
         setIsCreatingSession(false);
         return;
       }

@@ -30,8 +30,22 @@ Deno.serve(async (req) => {
     // If customer data is provided, we need to create/update the session with this info
     const hasCustomerData = customerName && customerPhone
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')
+    const supabaseKey =
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? Deno.env.get('SUPABASE_ANON_KEY')
+
+    if (!supabaseUrl || !supabaseKey) {
+      console.error('Missing Supabase env vars', { hasUrl: !!supabaseUrl, hasKey: !!supabaseKey })
+      return new Response(
+        JSON.stringify({
+          hasActiveSession: false,
+          error: 'server_misconfigured',
+          message: 'Servidor temporariamente indisponível. Tente novamente em instantes.',
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      )
+    }
+
     const supabase = createClient(supabaseUrl, supabaseKey)
 
     // First get the company by slug
@@ -87,8 +101,12 @@ Deno.serve(async (req) => {
     if (sessionError) {
       console.error('Error checking session:', sessionError)
       return new Response(
-        JSON.stringify({ error: 'Error checking session' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({
+          hasActiveSession: false,
+          error: 'session_check_failed',
+          message: 'Erro ao verificar a mesa. Tente novamente.',
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       )
     }
 
@@ -178,9 +196,19 @@ Deno.serve(async (req) => {
 
   } catch (error) {
     console.error('Error:', error)
+
+    const errMsg =
+      error instanceof Error ? `${error.name}: ${error.message}` : 'Unknown error'
+
+    // Return 200 so the client can display a friendly message without throwing.
     return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({
+        hasActiveSession: false,
+        error: 'internal_error',
+        message: 'Erro ao abrir mesa. Tente novamente.',
+        debug: errMsg,
+      }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     )
   }
 })

@@ -147,8 +147,8 @@ export default function DriverDashboard() {
   const [showPaymentsModal, setShowPaymentsModal] = useState(false);
   const [isMultiDeliveryActive, setIsMultiDeliveryActive] = useState(false);
 
-  // Apply company colors for branding
-  useCompanyColors(driver?.company_id || null);
+  // Apply company colors and get branding info (logo)
+  const { branding } = useCompanyColors(driver?.company_id || null);
   
   const watchIdRef = useRef<number | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -874,19 +874,40 @@ export default function DriverDashboard() {
         <div className="max-w-2xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              {/* Motoboy Icon */}
-              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-lg">
-                <Bike className="h-6 w-6 text-primary-foreground" />
-              </div>
-              <div>
-                <p className="font-semibold text-lg">
+              {/* Company Logo or Motoboy Icon */}
+              {branding.logo ? (
+                <div className="w-12 h-12 rounded-full overflow-hidden bg-card border-2 border-primary/20 shadow-lg flex-shrink-0">
+                  <img 
+                    src={branding.logo} 
+                    alt={branding.name || 'Logo'} 
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      // Fallback to icon if image fails
+                      e.currentTarget.style.display = 'none';
+                      e.currentTarget.parentElement!.innerHTML = `
+                        <div class="w-full h-full bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center">
+                          <svg class="h-6 w-6 text-primary-foreground" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h3"/></svg>
+                        </div>
+                      `;
+                    }}
+                  />
+                </div>
+              ) : (
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-lg flex-shrink-0">
+                  <Bike className="h-6 w-6 text-primary-foreground" />
+                </div>
+              )}
+              <div className="min-w-0">
+                <p className="font-semibold text-lg truncate">
                   {driver?.driver_name ? (() => {
                     const parts = driver.driver_name.trim().split(/\s+/);
                     if (parts.length === 1) return parts[0];
                     return `${parts[0]} ${parts[parts.length - 1].charAt(0)}.`;
                   })() : 'Entregador'}
                 </p>
-                <p className="text-xs text-muted-foreground">Entregador</p>
+                <p className="text-xs text-muted-foreground truncate">
+                  {branding.name || 'Entregador'}
+                </p>
               </div>
             </div>
             <div className="flex items-center gap-2">

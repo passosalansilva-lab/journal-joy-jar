@@ -1,14 +1,18 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
-interface CompanyColors {
+interface CompanyBranding {
   primaryColor: string;
   secondaryColor: string;
+  logo: string | null;
+  name: string | null;
 }
 
-const defaultColors: CompanyColors = {
+const defaultBranding: CompanyBranding = {
   primaryColor: '#F97316', // Orange
   secondaryColor: '#FED7AA',
+  logo: null,
+  name: null,
 };
 
 function hexToHsl(hex: string): string {
@@ -45,29 +49,29 @@ function hexToHsl(hex: string): string {
   return `${Math.round(h * 360)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`;
 }
 
-function applyColors(colors: CompanyColors) {
+function applyColors(branding: CompanyBranding) {
   const root = document.documentElement;
   
-  if (colors.primaryColor) {
-    const primaryHsl = hexToHsl(colors.primaryColor);
+  if (branding.primaryColor) {
+    const primaryHsl = hexToHsl(branding.primaryColor);
     root.style.setProperty('--primary', primaryHsl);
     root.style.setProperty('--ring', primaryHsl);
     root.style.setProperty('--sidebar-primary', primaryHsl);
     root.style.setProperty('--sidebar-ring', primaryHsl);
   }
   
-  if (colors.secondaryColor) {
-    const secondaryHsl = hexToHsl(colors.secondaryColor);
+  if (branding.secondaryColor) {
+    const secondaryHsl = hexToHsl(branding.secondaryColor);
     root.style.setProperty('--secondary', secondaryHsl);
     root.style.setProperty('--accent', secondaryHsl);
   }
 }
 
 export function useCompanyColors(companyId: string | null) {
-  const [colors, setColors] = useState<CompanyColors>(defaultColors);
+  const [branding, setBranding] = useState<CompanyBranding>(defaultBranding);
   const [loading, setLoading] = useState(true);
 
-  const loadColors = useCallback(async () => {
+  const loadBranding = useCallback(async () => {
     if (!companyId) {
       setLoading(false);
       return;
@@ -76,34 +80,42 @@ export function useCompanyColors(companyId: string | null) {
     try {
       const { data, error } = await supabase
         .from('companies')
-        .select('primary_color, secondary_color')
+        .select('primary_color, secondary_color, logo_url, name')
         .eq('id', companyId)
         .maybeSingle();
 
       if (error) {
-        console.error('Error loading company colors:', error);
+        console.error('Error loading company branding:', error);
         return;
       }
 
       if (data) {
-        const companyColors: CompanyColors = {
-          primaryColor: data.primary_color || defaultColors.primaryColor,
-          secondaryColor: data.secondary_color || defaultColors.secondaryColor,
+        const companyBranding: CompanyBranding = {
+          primaryColor: data.primary_color || defaultBranding.primaryColor,
+          secondaryColor: data.secondary_color || defaultBranding.secondaryColor,
+          logo: data.logo_url || null,
+          name: data.name || null,
         };
         
-        setColors(companyColors);
-        applyColors(companyColors);
+        setBranding(companyBranding);
+        applyColors(companyBranding);
       }
     } catch (error) {
-      console.error('Error loading company colors:', error);
+      console.error('Error loading company branding:', error);
     } finally {
       setLoading(false);
     }
   }, [companyId]);
 
   useEffect(() => {
-    loadColors();
-  }, [loadColors]);
+    loadBranding();
+  }, [loadBranding]);
 
-  return { colors, loading };
+  // Legacy compatibility - expose colors object
+  const colors = {
+    primaryColor: branding.primaryColor,
+    secondaryColor: branding.secondaryColor,
+  };
+
+  return { colors, branding, loading };
 }

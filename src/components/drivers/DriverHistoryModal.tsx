@@ -82,8 +82,18 @@ export function DriverHistoryModal({
       const monthStart = startOfMonth(currentMonth);
       const monthEnd = endOfMonth(currentMonth);
 
-      // Load all deliveries for this driver
-      const { data: allDeliveries, error: allError } = await supabase
+      // Load all deliveries from driver_deliveries table
+      const { data: allDriverDeliveries, error: deliveriesError } = await supabase
+        .from('driver_deliveries')
+        .select('id, order_id, created_at, delivered_at')
+        .eq('company_id', companyId)
+        .eq('driver_id', driver.id)
+        .order('created_at', { ascending: false });
+
+      if (deliveriesError) throw deliveriesError;
+
+      // Also check orders table for any orders assigned to this driver
+      const { data: allOrders, error: ordersError } = await supabase
         .from('orders')
         .select(`
           id, created_at, delivered_at, customer_name, total, status,
@@ -91,30 +101,74 @@ export function DriverHistoryModal({
         `)
         .eq('company_id', companyId)
         .eq('delivery_driver_id', driver.id)
-        .in('status', ['delivered', 'cancelled', 'out_for_delivery'])
         .order('created_at', { ascending: false });
 
-      if (allError) throw allError;
+      if (ordersError) throw ordersError;
 
-      // Filter deliveries for current month
-      const { data: monthDeliveries, error: monthError } = await supabase
-        .from('orders')
-        .select(`
-          id, created_at, delivered_at, customer_name, total, status,
-          customer_addresses:delivery_address_id (neighborhood, city)
-        `)
-        .eq('company_id', companyId)
-        .eq('delivery_driver_id', driver.id)
-        .gte('created_at', monthStart.toISOString())
-        .lte('created_at', monthEnd.toISOString())
-        .order('created_at', { ascending: false });
+      // Get order IDs from driver_deliveries
+      const deliveryOrderIds = (allDriverDeliveries || []).map(d => d.order_id).filter(Boolean);
 
-      if (monthError) throw monthError;
+      // Fetch orders for driver_deliveries records
+      let deliveryOrders: any[] = [];
+      if (deliveryOrderIds.length > 0) {
+        const { data: ordersFromDeliveries, error: ordersFromDeliveriesError } = await supabase
+          .from('orders')
+          .select(`
+            id, created_at, delivered_at, customer_name, total, status,
+            customer_addresses:delivery_address_id (neighborhood, city)
+          `)
+          .in('id', deliveryOrderIds);
 
-      setDeliveries(monthDeliveries || []);
+        if (!ordersFromDeliveriesError && ordersFromDeliveries) {
+          deliveryOrders = ordersFromDeliveries;
+        }
+      }
 
-      // Calculate metrics
-      const completedDeliveries = (allDeliveries || []).filter(
+      // Merge orders from both sources, avoiding duplicates
+      const orderMap = new Map();
+      
+      // Add orders from delivery_driver_id relation
+      (allOrders || []).forEach(order => {
+        orderMap.set(order.id, order);
+      });
+      
+      // Add orders from driver_deliveries table
+      deliveryOrders.forEach(order => {
+        if (!orderMap.has(order.id)) {
+          orderMap.set(order.id, order);
+        }
+      });
+
+      // Also create synthetic records from driver_deliveries if order not found
+      (allDriverDeliveries || []).forEach(delivery => {
+        if (delivery.order_id && !orderMap.has(delivery.order_id)) {
+          // Create a synthetic record for display
+          orderMap.set(delivery.order_id, {
+            id: delivery.order_id,
+            created_at: delivery.created_at,
+            delivered_at: delivery.delivered_at,
+            customer_name: 'Pedido',
+            total: 0,
+            status: delivery.delivered_at ? 'delivered' : 'out_for_delivery',
+            customer_addresses: null,
+          });
+        }
+      });
+
+      const combinedOrders = Array.from(orderMap.values()).sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+
+      // Filter for current month display
+      const monthDeliveries = combinedOrders.filter(order => {
+        const orderDate = new Date(order.created_at);
+        return orderDate >= monthStart && orderDate <= monthEnd;
+      });
+
+      setDeliveries(monthDeliveries);
+
+      // Calculate metrics from combined data
+      const completedDeliveries = combinedOrders.filter(
         (d) => d.status === 'delivered' && d.delivered_at
       );
 
@@ -143,7 +197,7 @@ export function DriverHistoryModal({
       const fastestTime = deliveryTimes.length > 0 ? Math.min(...deliveryTimes) : 0;
       const slowestTime = deliveryTimes.length > 0 ? Math.max(...deliveryTimes) : 0;
 
-      const totalOrders = (allDeliveries || []).length;
+      const totalOrders = combinedOrders.length;
       const successRate = totalOrders > 0
         ? (completedDeliveries.length / totalOrders) * 100
         : 0;

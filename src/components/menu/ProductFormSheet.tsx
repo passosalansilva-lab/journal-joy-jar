@@ -653,11 +653,25 @@ export function ProductFormSheet({
     }
   };
 
+  // Navigate to options step (step 2 for non-pizza, step 3 for pizza)
+  const goToOptionsStep = async () => {
+    if (currentProductId) {
+      if (isPizzaCategory) {
+        setStep(3);
+      } else {
+        setStep(2);
+      }
+      loadProductOptions(currentProductId);
+    }
+  };
+
   // Navigate directly to step 2 (for existing products)
   const goToStep2 = async () => {
     if (currentProductId) {
       setStep(2);
-      loadProductOptions(currentProductId);
+      if (!isPizzaCategory) {
+        loadProductOptions(currentProductId);
+      }
     }
   };
 
@@ -708,9 +722,9 @@ export function ProductFormSheet({
         await savePizzaSettings(productId);
       }
 
-      // Advance to step 2
+      // Advance to next step (step 2 for both, but different content)
       setStep(2);
-      if (productId) {
+      if (productId && !isPizzaCategory) {
         loadProductOptions(productId);
       }
     } catch (error: any) {
@@ -1055,34 +1069,49 @@ export function ProductFormSheet({
                 <span>Dados</span>
               </button>
               <ArrowRight className="h-3 w-3 text-muted-foreground" />
-              <button
-                type="button"
-                onClick={() => currentProductId && goToStep2()}
-                disabled={!currentProductId}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs transition-colors ${step === 2 ? 'bg-primary text-primary-foreground' : groups.length > 0 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50 cursor-pointer' : currentProductId ? 'bg-muted text-muted-foreground cursor-pointer hover:bg-muted/80' : 'bg-muted text-muted-foreground opacity-50 cursor-not-allowed'}`}
-                title={!currentProductId ? 'Salve os dados do produto primeiro' : 'Ir para Adicionais'}
-              >
-                {groups.length > 0 && step !== 2 ? (
-                  <Check className="h-3 w-3" />
-                ) : (
-                  <span className="font-semibold">2</span>
-                )}
-                <span>Adicionais</span>
-              </button>
-              {isPizzaCategory && (
+              {isPizzaCategory ? (
                 <>
-                  <ArrowRight className="h-3 w-3 text-muted-foreground" />
                   <button
                     type="button"
-                    onClick={() => currentProductId && setStep(3)}
+                    onClick={() => currentProductId && setStep(2)}
                     disabled={!currentProductId}
-                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs transition-colors ${step === 3 ? 'bg-primary text-primary-foreground' : currentProductId ? 'bg-muted text-muted-foreground cursor-pointer hover:bg-muted/80' : 'bg-muted text-muted-foreground opacity-50 cursor-not-allowed'}`}
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs transition-colors ${step === 2 ? 'bg-primary text-primary-foreground' : currentProductId ? 'bg-muted text-muted-foreground cursor-pointer hover:bg-muted/80' : 'bg-muted text-muted-foreground opacity-50 cursor-not-allowed'}`}
                     title={!currentProductId ? 'Salve os dados do produto primeiro' : 'Configurações de Pizza'}
                   >
                     <Pizza className="h-3 w-3" />
                     <span>Pizza</span>
                   </button>
+                  <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                  <button
+                    type="button"
+                    onClick={() => currentProductId && setStep(3)}
+                    disabled={!currentProductId}
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs transition-colors ${step === 3 ? 'bg-primary text-primary-foreground' : groups.length > 0 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50 cursor-pointer' : currentProductId ? 'bg-muted text-muted-foreground cursor-pointer hover:bg-muted/80' : 'bg-muted text-muted-foreground opacity-50 cursor-not-allowed'}`}
+                    title={!currentProductId ? 'Salve os dados do produto primeiro' : 'Ir para Adicionais'}
+                  >
+                    {groups.length > 0 && step !== 3 ? (
+                      <Check className="h-3 w-3" />
+                    ) : (
+                      <span className="font-semibold">3</span>
+                    )}
+                    <span>Adicionais</span>
+                  </button>
                 </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => currentProductId && goToStep2()}
+                  disabled={!currentProductId}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs transition-colors ${step === 2 ? 'bg-primary text-primary-foreground' : groups.length > 0 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50 cursor-pointer' : currentProductId ? 'bg-muted text-muted-foreground cursor-pointer hover:bg-muted/80' : 'bg-muted text-muted-foreground opacity-50 cursor-not-allowed'}`}
+                  title={!currentProductId ? 'Salve os dados do produto primeiro' : 'Ir para Adicionais'}
+                >
+                  {groups.length > 0 && step !== 2 ? (
+                    <Check className="h-3 w-3" />
+                  ) : (
+                    <span className="font-semibold">2</span>
+                  )}
+                  <span>Adicionais</span>
+                </button>
               )}
             </div>
           </SheetHeader>
@@ -1228,8 +1257,24 @@ export function ProductFormSheet({
             </div>
           )}
 
-          {/* Step 2: Options */}
-          {step === 2 && (
+          {/* Step 2: Pizza Settings (for pizza categories) */}
+          {step === 2 && isPizzaCategory && currentProductId && categoryId && (
+            <div className="py-4">
+              <ProductPizzaSettings
+                categoryId={categoryId}
+                companyId={companyId}
+                productId={currentProductId}
+                allowHalfHalf={productForm.allow_half_half_flavor}
+                onAllowHalfHalfChange={(checked) => {
+                  setProductForm((prev) => ({ ...prev, allow_half_half_flavor: checked }));
+                  savePizzaSettings(currentProductId);
+                }}
+              />
+            </div>
+          )}
+
+          {/* Step 2: Options (for non-pizza) OR Step 3: Options (for pizza) */}
+          {((step === 2 && !isPizzaCategory) || (step === 3 && isPizzaCategory)) && (
             <div className="py-4 space-y-4">
               {loadingOptions ? (
                 <div className="flex items-center justify-center py-8">
@@ -1303,23 +1348,6 @@ export function ProductFormSheet({
             </div>
           )}
 
-          {/* Step 3: Pizza Settings */}
-          {step === 3 && isPizzaCategory && currentProductId && categoryId && (
-            <div className="py-4">
-              <ProductPizzaSettings
-                categoryId={categoryId}
-                companyId={companyId}
-                productId={currentProductId}
-                allowHalfHalf={productForm.allow_half_half_flavor}
-                onAllowHalfHalfChange={(checked) => {
-                  setProductForm((prev) => ({ ...prev, allow_half_half_flavor: checked }));
-                  // Save immediately
-                  savePizzaSettings(currentProductId);
-                }}
-              />
-            </div>
-          )}
-
           <SheetFooter className="flex flex-row items-center justify-between gap-3 pt-4 border-t">
             <Button variant="outline" onClick={handleClose}>
               Cancelar
@@ -1333,9 +1361,12 @@ export function ProductFormSheet({
                 </Button>
               )}
               {step === 2 && isPizzaCategory && (
-                <Button onClick={() => setStep(3)}>
-                  Configurar Pizza
-                  <Pizza className="h-4 w-4 ml-1" />
+                <Button onClick={() => {
+                  setStep(3);
+                  if (currentProductId) loadProductOptions(currentProductId);
+                }}>
+                  Adicionais
+                  <ArrowRight className="h-4 w-4 ml-1" />
                 </Button>
               )}
               {(step === 2 && !isPizzaCategory) || step === 3 ? (

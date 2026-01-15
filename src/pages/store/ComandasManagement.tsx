@@ -166,6 +166,17 @@ export default function ComandasManagement() {
   const [statusFilter, setStatusFilter] = useState<'all' | 'open' | 'closed'>('open');
   const [scannerLoading, setScannerLoading] = useState(false);
 
+  // Comanda history for the selected number
+  interface ComandaHistory {
+    totalUses: number;
+    totalValue: number;
+    lastUse: string | null;
+    lastValue: number;
+    history: Array<{ date: string; total: number; status: string }>;
+  }
+  const [comandaHistory, setComandaHistory] = useState<ComandaHistory | null>(null);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+
   useEffect(() => {
     loadData();
   }, [user, staffCompany]);
@@ -637,6 +648,51 @@ export default function ComandasManagement() {
     oscillator.stop(audioContext.currentTime + 0.3);
   };
 
+  // Load history for a specific comanda number
+  const loadComandaHistory = async (comandaNumber: number) => {
+    if (!companyId) return;
+    
+    setLoadingHistory(true);
+    try {
+      const { data, error } = await (supabase as any)
+        .from('comandas')
+        .select('total, status, closed_at, created_at')
+        .eq('company_id', companyId)
+        .eq('number', comandaNumber)
+        .in('status', ['closed', 'cancelled'])
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (error) throw error;
+
+      if (data && data.length > 0) {
+        const totalUses = data.length;
+        const totalValue = data.reduce((sum: number, c: any) => sum + (c.total || 0), 0);
+        const lastUse = data[0].closed_at || data[0].created_at;
+        const lastValue = data[0].total || 0;
+        
+        setComandaHistory({
+          totalUses,
+          totalValue,
+          lastUse,
+          lastValue,
+          history: data.map((c: any) => ({
+            date: c.closed_at || c.created_at,
+            total: c.total || 0,
+            status: c.status,
+          })),
+        });
+      } else {
+        setComandaHistory(null);
+      }
+    } catch (error) {
+      console.error('Error loading comanda history:', error);
+      setComandaHistory(null);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
   // Handle barcode scan - find or create comanda
   const handleBarcodeScan = async (comandaNumber: number) => {
     setScannerLoading(true);
@@ -653,11 +709,12 @@ export default function ComandasManagement() {
         toast({ title: `✅ Comanda #${comandaNumber} encontrada` });
       } else {
         // Comanda is reusable (like a card with barcode), so always offer to create new
-        // Even if there was a closed comanda with this number before, we can reuse it
         playSuccessSound();
         setSelectedGeneratedComanda(comandaNumber);
         setIsManualNumber(false);
         setNewComandaNumber('');
+        // Load history for this comanda number
+        loadComandaHistory(comandaNumber);
         setShowNewDialog(true);
         toast({
           title: `🆕 Criar Comanda #${comandaNumber}`,
@@ -1061,6 +1118,7 @@ export default function ComandasManagement() {
         if (!open) {
           setSelectedGeneratedComanda(null);
           setIsManualNumber(false);
+          setComandaHistory(null);
         }
       }}>
         <DialogContent className="max-w-lg">
@@ -1071,6 +1129,76 @@ export default function ComandasManagement() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            {/* History Section - shows when a comanda number is selected via scan */}
+            {selectedGeneratedComanda && (
+              <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-semibold flex items-center gap-2">
+                    <Receipt className="h-4 w-4 text-primary" />
+                    Comanda #{selectedGeneratedComanda}
+                  </h4>
+                  {loadingHistory && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+                </div>
+                
+                {comandaHistory ? (
+                  <>
+                    <div className="grid grid-cols-3 gap-3 text-center">
+                      <div className="bg-background rounded-md p-2">
+                        <div className="text-lg font-bold text-primary">{comandaHistory.totalUses}</div>
+                        <div className="text-xs text-muted-foreground">vezes usada</div>
+                      </div>
+                      <div className="bg-background rounded-md p-2">
+                        <div className="text-lg font-bold text-green-600">
+                          {formatCurrency(comandaHistory.totalValue)}
+                        </div>
+                        <div className="text-xs text-muted-foreground">total acumulado</div>
+                      </div>
+                      <div className="bg-background rounded-md p-2">
+                        <div className="text-lg font-bold">
+                          {formatCurrency(comandaHistory.lastValue)}
+                        </div>
+                        <div className="text-xs text-muted-foreground">última vez</div>
+                      </div>
+                    </div>
+                    
+                    {comandaHistory.lastUse && (
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Calendar className="h-3 w-3" />
+                        Último uso: {formatDate(comandaHistory.lastUse)} às {formatTime(comandaHistory.lastUse)}
+                      </p>
+                    )}
+                    
+                    {/* Recent history */}
+                    {comandaHistory.history.length > 1 && (
+                      <details className="text-sm">
+                        <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+                          Ver últimos {comandaHistory.history.length} usos
+                        </summary>
+                        <div className="mt-2 space-y-1 max-h-24 overflow-y-auto">
+                          {comandaHistory.history.map((h, i) => (
+                            <div key={i} className="flex justify-between text-xs bg-background rounded px-2 py-1">
+                              <span>{formatDate(h.date)}</span>
+                              <span className={cn(
+                                'font-medium',
+                                h.status === 'cancelled' ? 'text-destructive line-through' : 'text-green-600'
+                              )}>
+                                {formatCurrency(h.total)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </details>
+                    )}
+                  </>
+                ) : !loadingHistory ? (
+                  <p className="text-sm text-muted-foreground flex items-center gap-2">
+                    <span className="text-green-600">✨</span>
+                    Primeira vez usando esta comanda!
+                  </p>
+                ) : null}
+              </div>
+            )}
+
             {/* Available Comandas Section */}
             {availableComandas.length > 0 && (
               <div className="space-y-2">
@@ -1085,11 +1213,15 @@ export default function ComandasManagement() {
                         size="sm"
                         className="h-10 min-w-[60px]"
                         onClick={() => {
-                          setSelectedGeneratedComanda(
-                            selectedGeneratedComanda === gc.number ? null : gc.number
-                          );
+                          const newNumber = selectedGeneratedComanda === gc.number ? null : gc.number;
+                          setSelectedGeneratedComanda(newNumber);
                           setIsManualNumber(false);
                           setNewComandaNumber('');
+                          if (newNumber) {
+                            loadComandaHistory(newNumber);
+                          } else {
+                            setComandaHistory(null);
+                          }
                         }}
                       >
                         #{gc.number}

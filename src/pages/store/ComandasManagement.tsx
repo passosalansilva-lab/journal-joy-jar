@@ -384,6 +384,33 @@ export default function ComandasManagement() {
         number = data as number;
       }
 
+      // If there is already an OPEN comanda with this number (other device/account), just open it
+      const { data: existingOpen, error: existingOpenError } = await (supabase as any)
+        .from('comandas')
+        .select('*')
+        .eq('company_id', companyId)
+        .eq('number', number)
+        .eq('status', 'open')
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (existingOpenError) throw existingOpenError;
+
+      const openComanda = Array.isArray(existingOpen) ? existingOpen[0] : null;
+      if (openComanda) {
+        toast({ title: `Comanda #${number} já está aberta. Abrindo...` });
+        setShowNewDialog(false);
+        setIsManualNumber(false);
+        setSelectedGeneratedComanda(null);
+        setSelectedComanda(openComanda as Comanda);
+        setStatusFilter('open');
+        loadComandaItems((openComanda as any).id);
+        loadComandas();
+        loadAvailableComandas();
+        setCreatingComanda(false);
+        return;
+      }
+
       const { data: newComanda, error } = await (supabase as any)
         .from('comandas')
         .insert({
@@ -492,9 +519,19 @@ export default function ComandasManagement() {
 
     setClosingComanda(true);
     try {
-      // Calculate total from items to ensure it's saved correctly
-      const itemsTotal = comandaItems.reduce((sum, item) => sum + (item.total_price || 0), 0);
-      const finalTotal = itemsTotal > 0 ? itemsTotal : selectedComanda.total;
+      // Calculate total from DB to avoid "zerado" when state is stale
+      const { data: dbItems, error: dbItemsError } = await (supabase as any)
+        .from('comanda_items')
+        .select('total_price')
+        .eq('comanda_id', selectedComanda.id);
+
+      if (dbItemsError) throw dbItemsError;
+
+      const dbItemsTotal = (dbItems || []).reduce((sum: number, item: any) => sum + (item.total_price || 0), 0);
+      const stateItemsTotal = comandaItems.reduce((sum, item) => sum + (item.total_price || 0), 0);
+      const finalTotal = (dbItemsTotal > 0 ? dbItemsTotal : stateItemsTotal) > 0
+        ? (dbItemsTotal > 0 ? dbItemsTotal : stateItemsTotal)
+        : selectedComanda.total;
 
       const { error } = await (supabase as any)
         .from('comandas')
@@ -711,32 +748,46 @@ export default function ComandasManagement() {
 
   // Handle barcode scan - find or create comanda
   const handleBarcodeScan = async (comandaNumber: number) => {
+    if (!companyId) return;
+
     setScannerLoading(true);
     try {
-      // First, try to find existing comanda with this number (open ones first)
-      const existingComanda = comandas.find(
-        (c) => c.number === comandaNumber && c.status === 'open'
-      );
+      // Always check DB first (multi-user safe)
+      const { data: openData, error: openError } = await (supabase as any)
+        .from('comandas')
+        .select('*')
+        .eq('company_id', companyId)
+        .eq('number', comandaNumber)
+        .eq('status', 'open')
+        .order('created_at', { ascending: false })
+        .limit(1);
 
-      if (existingComanda) {
+      if (openError) throw openError;
+
+      const dbOpenComanda = Array.isArray(openData) ? openData[0] : null;
+
+      if (dbOpenComanda) {
         playSuccessSound();
-        setSelectedComanda(existingComanda);
+        setSelectedComanda(dbOpenComanda as Comanda);
         setStatusFilter('open');
-        toast({ title: `✅ Comanda #${comandaNumber} encontrada` });
-      } else {
-        // Comanda is reusable (like a card with barcode), so always offer to create new
-        playSuccessSound();
-        setSelectedGeneratedComanda(comandaNumber);
-        setIsManualNumber(false);
-        setNewComandaNumber('');
-        // Load history for this comanda number
-        loadComandaHistory(comandaNumber);
-        setShowNewDialog(true);
-        toast({
-          title: `🆕 Criar Comanda #${comandaNumber}`,
-          description: 'Complete os dados para criar a comanda',
-        });
+        toast({ title: `✅ Comanda #${comandaNumber} aberta encontrada` });
+        return;
       }
+
+      // If not open, comanda is reusable (card/barcode): offer to create a new one
+      playSuccessSound();
+      setSelectedGeneratedComanda(comandaNumber);
+      setIsManualNumber(false);
+      setNewComandaNumber('');
+      loadComandaHistory(comandaNumber);
+      setShowNewDialog(true);
+      toast({
+        title: `🆕 Criar Comanda #${comandaNumber}`,
+        description: 'Complete os dados para criar a comanda',
+      });
+    } catch (error: any) {
+      console.error('Error scanning comanda:', error);
+      toast({ title: 'Erro no scanner', description: error.message, variant: 'destructive' });
     } finally {
       setScannerLoading(false);
     }

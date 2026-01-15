@@ -33,30 +33,39 @@ export function BarcodeScanner({ onScan, isLoading, className }: BarcodeScannerP
     }
   }, [isLoading, lastScan]);
 
+  const submitValue = useCallback(
+    (rawValue: string) => {
+      const trimmedValue = rawValue.trim();
+      if (!trimmedValue) return;
+
+      const parsed = parseComandaBarcode(trimmedValue);
+      if (parsed !== null) {
+        setLastScan(trimmedValue);
+        setInputValue(''); // clear immediately so next scan starts clean
+        onScan(parsed);
+      } else {
+        setInputValue('');
+      }
+    },
+    [onScan]
+  );
+
   const handleSubmit = useCallback(() => {
-    const trimmedValue = inputValue.trim();
-    if (!trimmedValue) return;
-    
-    const parsed = parseComandaBarcode(trimmedValue);
-    if (parsed !== null) {
-      setLastScan(trimmedValue);
-      setInputValue(''); // Clear immediately
-      onScan(parsed);
-    } else {
-      // Invalid barcode - just clear
-      setInputValue('');
-    }
-  }, [inputValue, onScan]);
+    // Use the actual DOM value to avoid state timing issues with fast scanners
+    const rawValue = inputRef.current?.value ?? inputValue;
+    submitValue(rawValue);
+  }, [inputValue, submitValue]);
 
   // Handle keyboard input - only submit on Enter
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
       if (e.key === 'Enter') {
         e.preventDefault();
-        handleSubmit();
+        // Use DOM value here (scanner may press Enter before state updates)
+        submitValue(e.currentTarget.value);
       }
     },
-    [handleSubmit]
+    [submitValue]
   );
 
   // Global keyboard listener for quick activation

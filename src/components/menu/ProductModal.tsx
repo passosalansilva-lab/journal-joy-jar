@@ -531,14 +531,12 @@ export function ProductModal({ product, open, onClose }: ProductModalProps) {
         groups.push(doughGroup);
       }
 
+      // Only show crust options if product has specific crust links configured
+      // Do NOT fallback to global crusts - if product has no crust links, it means no crusts for this product
       const hasProductCrustLinks = crustLinks && Array.isArray(crustLinks) && crustLinks.length > 0;
-      const hasGlobalCrustFlavors =
-        !hasProductCrustLinks && globalCrustFlavors && Array.isArray(globalCrustFlavors) && globalCrustFlavors.length > 0;
 
-      if (isPizzaCategory && (hasProductCrustLinks || hasGlobalCrustFlavors)) {
-        const flavorsSource = hasProductCrustLinks
-          ? (crustLinks as any[]).map((link) => link.pizza_crust_flavors)
-          : (globalCrustFlavors as any[]);
+      if (isPizzaCategory && hasProductCrustLinks) {
+        const flavorsSource = (crustLinks as any[]).map((link) => link.pizza_crust_flavors);
 
         const activeFlavors = flavorsSource.filter((flavor: any) => flavor && flavor.active);
 

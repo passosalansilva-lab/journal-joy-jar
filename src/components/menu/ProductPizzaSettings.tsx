@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Loader2, Plus, Trash2, Pizza, Settings } from 'lucide-react';
+import { Loader2, Plus, Trash2, Pizza, Settings, Pencil, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -74,6 +74,12 @@ export function ProductPizzaSettings({
   const [newDough, setNewDough] = useState({ name: '', price_modifier: 0 });
   const [newCrust, setNewCrust] = useState({ name: '', price_modifier: 0 });
   
+  // Custom group names
+  const [doughGroupName, setDoughGroupName] = useState('Massa');
+  const [crustGroupName, setCrustGroupName] = useState('Borda');
+  const [editingDoughName, setEditingDoughName] = useState(false);
+  const [editingCrustName, setEditingCrustName] = useState(false);
+  
   // Saving states
   const [saving, setSaving] = useState(false);
 
@@ -95,12 +101,16 @@ export function ProductPizzaSettings({
       
       // Find pizza-specific groups
       const sizeG = groups.find(g => g.name === 'Tamanho' || g.name === 'Tamanhos');
-      const doughG = groups.find(g => g.name === 'Massa' || g.name === 'Massas');
-      const crustG = groups.find(g => g.name === 'Borda' || g.name === 'Bordas');
+      const doughG = groups.find(g => g.name.toLowerCase().includes('massa') || g.name === 'Massas');
+      const crustG = groups.find(g => g.name.toLowerCase().includes('borda') || g.name === 'Bordas');
       
       setSizeGroup(sizeG || null);
       setDoughGroup(doughG || null);
       setCrustGroup(crustG || null);
+      
+      // Set custom group names
+      if (doughG) setDoughGroupName(doughG.name);
+      if (crustG) setCrustGroupName(crustG.name);
       
       // Map options to their groups
       setSizes(options.filter(o => o.group_id === sizeG?.id).map(o => ({
@@ -155,6 +165,34 @@ export function ProductPizzaSettings({
       .select().single();
     if (error) throw error;
     return data;
+  };
+
+  // Update group name
+  const updateGroupName = async (groupId: string, newName: string, type: 'dough' | 'crust') => {
+    if (!newName.trim()) return;
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from('product_option_groups')
+        .update({ name: newName.trim() })
+        .eq('id', groupId);
+      if (error) throw error;
+      
+      if (type === 'dough') {
+        setDoughGroup(prev => prev ? { ...prev, name: newName.trim() } : null);
+        setDoughGroupName(newName.trim());
+        setEditingDoughName(false);
+      } else {
+        setCrustGroup(prev => prev ? { ...prev, name: newName.trim() } : null);
+        setCrustGroupName(newName.trim());
+        setEditingCrustName(false);
+      }
+      toast({ title: 'Nome do grupo atualizado' });
+    } catch (error: any) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
   };
 
   // Add option
@@ -289,11 +327,42 @@ export function ProductPizzaSettings({
             </TabsContent>
 
             <TabsContent value="doughs" className="space-y-3 mt-3">
+              {/* Group name editor */}
+              <div className="flex items-center gap-2 mb-2">
+                {editingDoughName ? (
+                  <>
+                    <Input 
+                      value={doughGroupName} 
+                      onChange={(e) => setDoughGroupName(e.target.value)} 
+                      placeholder="Nome do grupo" 
+                      className="h-8 text-sm flex-1" 
+                    />
+                    <Button 
+                      size="sm" 
+                      onClick={() => doughGroup && updateGroupName(doughGroup.id, doughGroupName, 'dough')} 
+                      disabled={saving || !doughGroupName.trim()}
+                      className="h-8"
+                    >
+                      {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-sm font-medium">{doughGroup ? doughGroupName : 'Criar grupo de Massa'}</span>
+                    {doughGroup && (
+                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setEditingDoughName(true)}>
+                        <Pencil className="h-3 w-3" />
+                      </Button>
+                    )}
+                  </>
+                )}
+              </div>
+              
               {settings && (
                 <Card className="bg-muted/30 mb-3">
                   <CardContent className="space-y-3 pt-4">
                     <div className="flex items-center justify-between">
-                      <div><p className="text-sm font-medium">Massa obrigatória</p><p className="text-xs text-muted-foreground">Cliente deve escolher</p></div>
+                      <div><p className="text-sm font-medium">Obrigatório</p><p className="text-xs text-muted-foreground">Cliente deve escolher</p></div>
                       <Switch checked={settings.dough_is_required} onCheckedChange={(v) => setSettings(p => p ? { ...p, dough_is_required: v } : null)} />
                     </div>
                     <div className="space-y-2">
@@ -325,11 +394,42 @@ export function ProductPizzaSettings({
             </TabsContent>
 
             <TabsContent value="crusts" className="space-y-3 mt-3">
+              {/* Group name editor */}
+              <div className="flex items-center gap-2 mb-2">
+                {editingCrustName ? (
+                  <>
+                    <Input 
+                      value={crustGroupName} 
+                      onChange={(e) => setCrustGroupName(e.target.value)} 
+                      placeholder="Nome do grupo" 
+                      className="h-8 text-sm flex-1" 
+                    />
+                    <Button 
+                      size="sm" 
+                      onClick={() => crustGroup && updateGroupName(crustGroup.id, crustGroupName, 'crust')} 
+                      disabled={saving || !crustGroupName.trim()}
+                      className="h-8"
+                    >
+                      {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-sm font-medium">{crustGroup ? crustGroupName : 'Criar grupo de Borda'}</span>
+                    {crustGroup && (
+                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setEditingCrustName(true)}>
+                        <Pencil className="h-3 w-3" />
+                      </Button>
+                    )}
+                  </>
+                )}
+              </div>
+              
               {settings && (
                 <Card className="bg-muted/30 mb-3">
                   <CardContent className="space-y-3 pt-4">
                     <div className="flex items-center justify-between">
-                      <div><p className="text-sm font-medium">Borda obrigatória</p><p className="text-xs text-muted-foreground">Cliente deve escolher</p></div>
+                      <div><p className="text-sm font-medium">Obrigatório</p><p className="text-xs text-muted-foreground">Cliente deve escolher</p></div>
                       <Switch checked={settings.crust_is_required} onCheckedChange={(v) => setSettings(p => p ? { ...p, crust_is_required: v } : null)} />
                     </div>
                     <div className="space-y-2">

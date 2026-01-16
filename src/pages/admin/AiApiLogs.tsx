@@ -69,29 +69,42 @@ export default function AiApiLogs() {
   const loadLogs = async () => {
     setLoading(true);
     try {
-      // Use rpc or direct fetch for tables not in generated types
-      const { data, error } = await supabase.rpc("get_ai_api_logs" as any);
+      const session = await supabase.auth.getSession();
+      const accessToken = session.data.session?.access_token;
       
-      // Fallback to direct table query if RPC doesn't exist
-      if (error?.code === "PGRST202") {
-        const response = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL || "https://uyaymtikndembadyljib.supabase.co"}/rest/v1/ai_api_logs?select=*&order=created_at.desc&limit=200`,
-          {
-            headers: {
-              apikey: import.meta.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV5YXltdGlrbmRlbWJhZHlsamliIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDMwMjkxODQsImV4cCI6MjA1ODYwNTE4NH0.iLcJLt3cBvFRyB1wT4_M4rh-TySq_vpMCmQz3rB-UBk",
-              Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-            },
-          }
-        );
-        const jsonData = await response.json();
-        setLogs(jsonData as AiLog[]);
+      if (!accessToken) {
+        console.error("No access token available");
+        setLogs([]);
+        return;
+      }
+
+      // Direct REST API call since table is not in generated types
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+      
+      const response = await fetch(
+        `${supabaseUrl}/rest/v1/ai_api_logs?select=*&order=created_at.desc&limit=200`,
+        {
+          headers: {
+            "apikey": supabaseKey,
+            "Authorization": `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("API Error:", response.status, errorText);
+        setLogs([]);
         return;
       }
       
-      if (error) throw error;
-      setLogs((data as unknown as AiLog[]) || []);
+      const jsonData = await response.json();
+      setLogs(Array.isArray(jsonData) ? jsonData : []);
     } catch (error) {
       console.error("Error loading logs:", error);
+      setLogs([]);
     } finally {
       setLoading(false);
     }

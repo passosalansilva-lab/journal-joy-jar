@@ -985,7 +985,9 @@ function PublicMenuContent() {
     items.length > 0 // Only enable when cart has items
   );
 
-  // Meio a meio é controlado somente pela categoria (sem override por produto)
+  // Meio a meio: precisa estar ativo na categoria E ter pelo menos 2 sabores (produtos) habilitados
+  const [halfHalfEligibleProductIds, setHalfHalfEligibleProductIds] = useState<string[]>([]);
+  const [hasHalfHalfProductRules, setHasHalfHalfProductRules] = useState(false);
 
   // Mapa category_id -> preço base do tamanho "Grande" (ou primeiro tamanho)
   const [pizzaCategoryBasePrices, setPizzaCategoryBasePrices] = useState<Record<string, number>>({});
@@ -993,6 +995,55 @@ function PublicMenuContent() {
   // Açaí categories e preços base
   const [acaiCategoryIds, setAcaiCategoryIds] = useState<string[]>([]);
   const [acaiCategoryBasePrices, setAcaiCategoryBasePrices] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    const loadHalfHalfEligibilityByProduct = async () => {
+      try {
+        if (!pizzaConfig.pizzaCategoryIds.length || !products.length) {
+          setHalfHalfEligibleProductIds([]);
+          setHasHalfHalfProductRules(false);
+          return;
+        }
+
+        const pizzaCategoryProducts = products.filter(
+          (p) => p.category_id && pizzaConfig.pizzaCategoryIds.includes(p.category_id)
+        );
+
+        if (!pizzaCategoryProducts.length) {
+          setHalfHalfEligibleProductIds([]);
+          setHasHalfHalfProductRules(false);
+          return;
+        }
+
+        const { data, error } = await supabase
+          .from('pizza_product_settings')
+          .select('product_id, allow_half_half')
+          .in('product_id', pizzaCategoryProducts.map((p) => p.id));
+
+        if (error) {
+          console.error('Erro ao carregar configurações de meio a meio por produto:', error);
+          setHalfHalfEligibleProductIds([]);
+          setHasHalfHalfProductRules(false);
+          return;
+        }
+
+        const rows = data || [];
+        setHasHalfHalfProductRules(rows.length > 0);
+
+        const eligibleIds = rows
+          .filter((row: any) => row.allow_half_half === true)
+          .map((row: any) => row.product_id as string);
+
+        setHalfHalfEligibleProductIds(eligibleIds);
+      } catch (err) {
+        console.error('Erro inesperado ao carregar elegibilidade de meio a meio:', err);
+        setHalfHalfEligibleProductIds([]);
+        setHasHalfHalfProductRules(false);
+      }
+    };
+
+    loadHalfHalfEligibilityByProduct();
+  }, [pizzaConfig.pizzaCategoryIds, products]);
 
   // Carregar preço base por PRODUTO de pizza (não por categoria)
   // Busca os tamanhos configurados em product_option_groups/product_options
@@ -1158,14 +1209,20 @@ function PublicMenuContent() {
     loadAcaiData();
   }, [company?.id]);
 
-  // Pizza products for half-half (somente por categoria)
+  // Pizza products for half-half (categoria + elegibilidade por produto, quando configurada)
   const pizzaCategoryIdsArray = pizzaConfig?.pizzaCategoryIds || [];
   const rawPizzaProducts = pizzaCategoryIdsArray.length > 0
-    ? products.filter(
-        (p) =>
-          p.category_id &&
-          pizzaCategoryIdsArray.includes(p.category_id)
-      )
+    ? products.filter((p) => {
+        if (!p.category_id || !pizzaCategoryIdsArray.includes(p.category_id)) return false;
+
+        // Se existir configuração por produto, só entra quem está explicitamente habilitado.
+        // Se não existir nenhuma regra por produto cadastrada, assume que todos podem.
+        if (hasHalfHalfProductRules) {
+          return halfHalfEligibleProductIds.includes(p.id);
+        }
+
+        return true;
+      })
     : [];
 
   const getDisplayPrice = (product: Product) => {
@@ -1192,7 +1249,7 @@ function PublicMenuContent() {
   const halfHalfCategorySetting = Object.values(pizzaConfig.categorySettings || {})[0];
   const hasHalfHalfEnabled = !!halfHalfCategorySetting?.allow_half_half;
   const hasEnoughFlavorsForHalfHalf = pizzaProducts.length >= 2;
-  const canShowHalfHalf = hasHalfHalfEnabled;
+  const canShowHalfHalf = hasHalfHalfEnabled && hasEnoughFlavorsForHalfHalf;
 
   const scrollToCategory = (categoryId: string | null) => {
     setSelectedCategory(categoryId);
@@ -1812,16 +1869,12 @@ function PublicMenuContent() {
       {canShowHalfHalf && (
         <div className="mt-6 px-4">
           <button
-            onClick={() => {
-              if (!hasEnoughFlavorsForHalfHalf) return;
-              setHalfHalfModalOpen(true);
-            }}
-            disabled={!hasEnoughFlavorsForHalfHalf}
+            onClick={() => setHalfHalfModalOpen(true)}
             className={cn(
               "w-full p-6 rounded-2xl border overflow-hidden relative",
               "bg-gradient-to-br from-primary/10 via-background to-secondary/10",
-              "border-primary/20 transition-all",
-              hasEnoughFlavorsForHalfHalf ? "hover:border-primary/40 active:scale-[0.98] group" : "opacity-60 cursor-not-allowed"
+              "border-primary/20 hover:border-primary/40 transition-all",
+              "active:scale-[0.98] group"
             )}
           >
             <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -1841,15 +1894,12 @@ function PublicMenuContent() {
                   🍕 Pizza meio a meio
                 </h3>
                 <p className="text-sm text-muted-foreground mt-1">
-                  {!hasEnoughFlavorsForHalfHalf
-                    ? 'Precisa ter pelo menos 2 sabores disponíveis'
-                    : <>Até {halfHalfCategorySetting?.max_flavors ?? 2} sabores • {
-                        halfHalfCategorySetting?.half_half_pricing_rule === 'highest'
-                          ? 'cobra o sabor mais caro'
-                          : halfHalfCategorySetting?.half_half_pricing_rule === 'average'
-                            ? 'cobra a média dos sabores'
-                            : 'cobra proporcional (metade de cada)'
-                      }</>
+                  Até {halfHalfCategorySetting?.max_flavors ?? 2} sabores • {
+                    halfHalfCategorySetting?.half_half_pricing_rule === 'highest'
+                      ? 'cobra o sabor mais caro'
+                      : halfHalfCategorySetting?.half_half_pricing_rule === 'average'
+                        ? 'cobra a média dos sabores'
+                        : 'cobra proporcional (metade de cada)'
                   }
                 </p>
               </div>

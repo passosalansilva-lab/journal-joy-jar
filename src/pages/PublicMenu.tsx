@@ -1043,12 +1043,12 @@ function PublicMenuContent() {
           const sizesForCategory = (data || []).filter((row: any) => row.category_id === catId);
           if (!sizesForCategory.length) return;
 
-          // Sort by base_price descending to get the highest price
+          // Sort by base_price ascending to get the lowest price for "A partir de"
           const sorted = [...sizesForCategory].sort(
-            (a: any, b: any) => Number(b.base_price || 0) - Number(a.base_price || 0)
+            (a: any, b: any) => Number(a.base_price || 0) - Number(b.base_price || 0)
           );
-          const highest = sorted[0];
-          const basePrice = Number(highest.base_price || 0);
+          const lowest = sorted[0];
+          const basePrice = Number(lowest.base_price || 0);
           if (basePrice > 0) {
             map[catId] = basePrice;
           }
@@ -1784,6 +1784,9 @@ function PublicMenuContent() {
           <div className="flex gap-3 overflow-x-auto px-4 pb-2 scrollbar-hide">
             {featuredProducts.map((product) => {
               const displayPrice = getDisplayPrice(product);
+              const isPizzaWithSizes = !!product.category_id && 
+                pizzaConfig.pizzaCategoryIds.includes(product.category_id) && 
+                !!pizzaCategoryBasePrices[product.category_id];
               return (
                 <FeaturedProductCard
                   key={product.id}
@@ -1795,6 +1798,7 @@ function PublicMenuContent() {
                   isFavorite={favoriteProductIds.includes(product.id)}
                   onToggleFavorite={(e) => handleToggleFavoriteClick(product.id, e)}
                   isCombo={comboProductIds.has(product.id)}
+                  isPizzaWithSizes={isPizzaWithSizes}
                 />
               );
             })}
@@ -1846,6 +1850,10 @@ function PublicMenuContent() {
                  const isAcaiWithSizes = !!product.category_id && 
                    acaiCategoryIds.includes(product.category_id) && 
                    !!acaiCategoryBasePrices[product.category_id];
+                 // Pizza mostra "A partir de" se tiver tamanhos configurados
+                 const isPizzaWithSizes = !!product.category_id && 
+                   pizzaConfig.pizzaCategoryIds.includes(product.category_id) && 
+                   !!pizzaCategoryBasePrices[product.category_id];
                  return (
                    <ProductCard
                      key={product.id}
@@ -1859,6 +1867,7 @@ function PublicMenuContent() {
                      isCombo={isCombo}
                      isSelectableCombo={isSelectableCombo}
                      isAcaiProduct={isAcaiWithSizes}
+                     isPizzaWithSizes={isPizzaWithSizes}
                    />
                  );
                })}
@@ -2099,6 +2108,7 @@ function FeaturedProductCard({
   isFavorite,
   onToggleFavorite,
   isCombo = false,
+  isPizzaWithSizes = false,
 }: {
   product: Product;
   onClick: () => void;
@@ -2108,6 +2118,7 @@ function FeaturedProductCard({
   isFavorite: boolean;
   onToggleFavorite: (e: React.MouseEvent) => void;
   isCombo?: boolean;
+  isPizzaWithSizes?: boolean;
 }) {
   return (
     <button
@@ -2191,7 +2202,11 @@ function FeaturedProductCard({
         )}
         {Number(product.price) > 0 && (
           <div className="flex items-center gap-1.5 flex-wrap">
-            {product.promotional_price && Number(product.promotional_price) > 0 ? (
+            {isPizzaWithSizes ? (
+              <span className="text-primary font-bold text-sm">
+                A partir de R$ {Number(product.price).toFixed(2)}
+              </span>
+            ) : product.promotional_price && Number(product.promotional_price) > 0 ? (
               <>
                 <span className="text-xs text-muted-foreground line-through">
                   R$ {Number(product.price).toFixed(2)}
@@ -2237,6 +2252,7 @@ function ProductCard({
   isCombo = false,
   isSelectableCombo = false,
   isAcaiProduct = false,
+  isPizzaWithSizes = false,
 }: {
   product: Product;
   onClick: () => void;
@@ -2248,6 +2264,7 @@ function ProductCard({
   isCombo?: boolean;
   isSelectableCombo?: boolean;
   isAcaiProduct?: boolean;
+  isPizzaWithSizes?: boolean;
 }) {
   const hasOptions = product.product_options && product.product_options.length > 0;
 
@@ -2355,7 +2372,11 @@ function ProductCard({
                 </span>
               ) : Number(product.price) > 0 ? (
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  {product.promotional_price && Number(product.promotional_price) > 0 ? (
+                  {isPizzaWithSizes ? (
+                    <span className="text-base font-bold text-primary">
+                      A partir de R$ {Number(product.price).toFixed(2)}
+                    </span>
+                  ) : product.promotional_price && Number(product.promotional_price) > 0 ? (
                     <>
                       <span className="text-xs text-muted-foreground line-through">
                         R$ {Number(product.price).toFixed(2)}

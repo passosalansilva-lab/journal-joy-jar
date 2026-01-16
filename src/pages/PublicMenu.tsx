@@ -1016,52 +1016,90 @@ function PublicMenuContent() {
     loadHalfHalfEligibility();
   }, [pizzaConfig.pizzaCategoryIds, products]);
 
-  // Carregar preço base (tamanho Grande) por categoria de pizza, usando as categorias da loja
+  // Carregar preço base por PRODUTO de pizza (não por categoria)
+  // Busca os tamanhos configurados em product_option_groups/product_options
   useEffect(() => {
-    const loadPizzaBasePrices = async () => {
+    const loadPizzaProductPrices = async () => {
       try {
-        if (!company?.id || !categories.length) {
+        if (!company?.id || !products.length || !pizzaConfig.pizzaCategoryIds.length) {
           setPizzaCategoryBasePrices({});
           return;
         }
 
-        const categoryIds = categories.map((c) => c.id);
+        // Filtrar produtos de pizza
+        const pizzaProductIds = products
+          .filter((p) => p.category_id && pizzaConfig.pizzaCategoryIds.includes(p.category_id))
+          .map((p) => p.id);
 
-        const { data, error } = await supabase
-          .from('pizza_category_sizes')
-          .select('category_id, name, base_price')
-          .in('category_id', categoryIds);
-
-        if (error) {
-          console.error('Erro ao carregar tamanhos de pizza:', error);
+        if (!pizzaProductIds.length) {
+          setPizzaCategoryBasePrices({});
           return;
         }
 
-        const map: Record<string, number> = {};
+        // Buscar grupos de opções "Tamanho" para cada produto de pizza
+        const { data: groupsData, error: groupsError } = await supabase
+          .from('product_option_groups')
+          .select('id, product_id, name')
+          .in('product_id', pizzaProductIds);
 
-        categoryIds.forEach((catId) => {
-          const sizesForCategory = (data || []).filter((row: any) => row.category_id === catId);
-          if (!sizesForCategory.length) return;
+        if (groupsError) {
+          console.error('Erro ao carregar grupos de tamanhos de pizza:', groupsError);
+          return;
+        }
 
-          // Sort by base_price ascending to get the lowest price for "A partir de"
-          const sorted = [...sizesForCategory].sort(
-            (a: any, b: any) => Number(a.base_price || 0) - Number(b.base_price || 0)
+        // Filtrar apenas grupos de "Tamanho"
+        const sizeGroups = (groupsData || []).filter((g: any) => {
+          const name = (g.name || '').toLowerCase().trim();
+          return name === 'tamanho' || name === 'tamanhos' || name.includes('tamanho');
+        });
+
+        if (!sizeGroups.length) {
+          setPizzaCategoryBasePrices({});
+          return;
+        }
+
+        const sizeGroupIds = sizeGroups.map((g: any) => g.id);
+
+        // Buscar opções (tamanhos) com preços
+        const { data: optionsData, error: optionsError } = await supabase
+          .from('product_options')
+          .select('id, group_id, name, price_modifier')
+          .in('group_id', sizeGroupIds);
+
+        if (optionsError) {
+          console.error('Erro ao carregar opções de tamanhos de pizza:', optionsError);
+          return;
+        }
+
+        // Mapear: product_id -> menor preço de tamanho
+        const productPriceMap: Record<string, number> = {};
+
+        sizeGroups.forEach((group: any) => {
+          const productId = group.product_id;
+          const groupOptions = (optionsData || []).filter((o: any) => o.group_id === group.id);
+          
+          if (!groupOptions.length) return;
+
+          // Ordenar por price_modifier ascendente para pegar o menor preço
+          const sorted = [...groupOptions].sort(
+            (a: any, b: any) => Number(a.price_modifier || 0) - Number(b.price_modifier || 0)
           );
-          const lowest = sorted[0];
-          const basePrice = Number(lowest.base_price || 0);
-          if (basePrice > 0) {
-            map[catId] = basePrice;
+          const lowestPrice = Number(sorted[0].price_modifier || 0);
+          
+          if (lowestPrice > 0) {
+            productPriceMap[productId] = lowestPrice;
           }
         });
 
-        setPizzaCategoryBasePrices(map);
+        // Usar o productPriceMap no estado (reaproveitando pizzaCategoryBasePrices com chave de product_id)
+        setPizzaCategoryBasePrices(productPriceMap);
       } catch (err) {
-        console.error('Erro inesperado ao carregar preços base de pizza:', err);
+        console.error('Erro inesperado ao carregar preços de pizza por produto:', err);
       }
     };
 
-    loadPizzaBasePrices();
-  }, [company?.id, categories]);
+    loadPizzaProductPrices();
+  }, [company?.id, products, pizzaConfig.pizzaCategoryIds]);
 
   // Carregar categorias e preços base de açaí
   // Ref para evitar múltiplas execuções
@@ -1153,16 +1191,13 @@ function PublicMenuContent() {
     : [];
 
   const getDisplayPrice = (product: Product) => {
-    // Para pizzas e açaí com tamanhos configurados, priorizar o preço do tamanho
-    if (product.category_id) {
-      // Pizza com tamanhos configurados - usar preço do menor tamanho
-      if (pizzaCategoryBasePrices[product.category_id]) {
-        return pizzaCategoryBasePrices[product.category_id];
-      }
-      // Açaí com tamanhos configurados - usar preço do maior tamanho
-      if (acaiCategoryBasePrices[product.category_id]) {
-        return acaiCategoryBasePrices[product.category_id];
-      }
+    // Para pizzas com tamanhos configurados POR PRODUTO - usar preço do menor tamanho
+    if (pizzaCategoryBasePrices[product.id]) {
+      return pizzaCategoryBasePrices[product.id];
+    }
+    // Açaí com tamanhos configurados por categoria - usar preço do maior tamanho
+    if (product.category_id && acaiCategoryBasePrices[product.category_id]) {
+      return acaiCategoryBasePrices[product.category_id];
     }
     // Fallback para o preço do produto
     if (Number(product.price) > 0) {
@@ -1788,7 +1823,7 @@ function PublicMenuContent() {
               const displayPrice = getDisplayPrice(product);
               const isPizzaWithSizes = !!product.category_id && 
                 pizzaConfig.pizzaCategoryIds.includes(product.category_id) && 
-                !!pizzaCategoryBasePrices[product.category_id];
+                !!pizzaCategoryBasePrices[product.id];
               return (
                 <FeaturedProductCard
                   key={product.id}
@@ -1852,10 +1887,10 @@ function PublicMenuContent() {
                  const isAcaiWithSizes = !!product.category_id && 
                    acaiCategoryIds.includes(product.category_id) && 
                    !!acaiCategoryBasePrices[product.category_id];
-                 // Pizza mostra "A partir de" se tiver tamanhos configurados
+                 // Pizza mostra "A partir de" se tiver tamanhos configurados POR PRODUTO
                  const isPizzaWithSizes = !!product.category_id && 
                    pizzaConfig.pizzaCategoryIds.includes(product.category_id) && 
-                   !!pizzaCategoryBasePrices[product.category_id];
+                   !!pizzaCategoryBasePrices[product.id];
                  return (
                    <ProductCard
                      key={product.id}

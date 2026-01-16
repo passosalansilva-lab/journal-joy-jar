@@ -622,27 +622,34 @@ export function ProductModal({ product, open, onClose }: ProductModalProps) {
     const isCurrentlySelected = selectedOptions.some(
       (o) => o.groupId === group.id && o.optionId === option.id
     );
-    
-    // If group is NOT required and option is already selected, allow deselection
-    if (!group.is_required && isCurrentlySelected) {
+
+    const effectiveMinSelections =
+      typeof group.min_selections === 'number'
+        ? group.min_selections
+        : group.is_required
+          ? 1
+          : 0;
+
+    // If the group allows 0 selections (optional) and the option is already selected, allow deselection
+    if (effectiveMinSelections === 0 && isCurrentlySelected) {
       let filtered = selectedOptions.filter(
         (o) => !(o.groupId === group.id && o.optionId === option.id)
       );
-      
+
       if (group.id === 'acai-size') {
         filtered = filtered.filter((o) => !o.groupId.startsWith('acai-group-'));
       }
-      
+
       setSelectedOptions(filtered);
       return;
     }
-    
+
     let filtered = selectedOptions.filter((o) => o.groupId !== group.id);
-    
+
     if (group.id === 'acai-size') {
       filtered = filtered.filter((o) => !o.groupId.startsWith('acai-group-'));
     }
-    
+
     setSelectedOptions([
       ...filtered,
       {

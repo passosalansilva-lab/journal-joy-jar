@@ -664,7 +664,7 @@ export default function Index() {
               <span className="text-sm font-semibold text-white">Experiência Mobile</span>
             </div>
             <h2 className="text-4xl sm:text-5xl lg:text-6xl font-black text-white mb-4">
-              Apps nativos e modernos
+              Apps web modernos
             </h2>
             <p className="text-xl text-gray-400 max-w-2xl mx-auto">
               Seus clientes e entregadores terão a melhor experiência

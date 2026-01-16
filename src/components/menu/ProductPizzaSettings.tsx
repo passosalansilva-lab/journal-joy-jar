@@ -681,30 +681,20 @@ export function ProductPizzaSettings({
                         <Switch checked={settings.allow_half_half} onCheckedChange={(v) => setSettings(p => p ? { ...p, allow_half_half: v } : null)} />
                       </div>
                       {settings.allow_half_half && (
-                        <>
-                          <div className="space-y-2">
-                            <Label className="text-sm">Máximo de sabores</Label>
-                            <Select value={String(settings.max_flavors)} onValueChange={(v) => setSettings(p => p ? { ...p, max_flavors: parseInt(v) } : null)}>
-                              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="2">2 sabores</SelectItem>
-                                <SelectItem value="3">3 sabores</SelectItem>
-                                <SelectItem value="4">4 sabores</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div className="space-y-2">
-                            <Label className="text-sm">Regra de preço</Label>
-                            <Select value={settings.half_half_pricing_rule} onValueChange={(v) => setSettings(p => p ? { ...p, half_half_pricing_rule: v } : null)}>
-                              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="highest">Preço do maior</SelectItem>
-                                <SelectItem value="average">Média</SelectItem>
-                                <SelectItem value="sum">Soma proporcional</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </>
+                        <div className="space-y-2">
+                          <Label className="text-sm">Máximo de sabores</Label>
+                          <Select value={String(settings.max_flavors)} onValueChange={(v) => setSettings(p => p ? { ...p, max_flavors: parseInt(v) } : null)}>
+                            <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="2">2 sabores</SelectItem>
+                              <SelectItem value="3">3 sabores</SelectItem>
+                              <SelectItem value="4">4 sabores</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <p className="text-xs text-muted-foreground">
+                            A regra de preço é definida nas configurações da categoria de pizza.
+                          </p>
+                        </div>
                       )}
                     </CardContent>
                   </Card>

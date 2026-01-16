@@ -116,12 +116,15 @@ export function HalfHalfPizzaModal({
     return Number(product.price);
   };
 
-  // Load pizza sizes when modal opens
+  // Load pizza sizes when modal opens - only once when opening
+  const [sizesLoaded, setSizesLoaded] = useState(false);
+  
   useEffect(() => {
-    if (open && pizzaProducts.length > 0) {
+    if (open && pizzaProducts.length > 0 && !sizesLoaded) {
       loadPizzaSizes();
+      setSizesLoaded(true);
     }
-  }, [open, pizzaProducts]);
+  }, [open, pizzaProducts, sizesLoaded]);
 
   useEffect(() => {
     if (open && step === "options" && selectedFlavors.length > 0) {
@@ -136,6 +139,7 @@ export function HalfHalfPizzaModal({
       setQuantity(1);
       setSelectedOptions([]);
       setSelectedSize(null);
+      setSizesLoaded(false); // Reset para carregar novamente na próxima abertura
     }
   }, [open]);
 

@@ -429,7 +429,8 @@ export function ProductModal({ product, open, onClose }: ProductModalProps) {
           min_selections: 1,
           max_selections: 1,
           selection_type: 'single',
-          sort_order: -2,
+          // Always show pizza config first: Tamanho → Massa → Borda
+          sort_order: -30,
           free_quantity_limit: 0,
           extra_unit_price: 0,
           options: productSizeOptions.map((size: any) => ({
@@ -573,7 +574,8 @@ export function ProductModal({ product, open, onClose }: ProductModalProps) {
           min_selections: effectiveDoughRequired ? 1 : 0,
           max_selections: effectiveDoughMax,
           selection_type: effectiveDoughMax === 1 ? 'single' : 'multiple',
-          sort_order: -1,
+          // Always show pizza config first: Tamanho → Massa → Borda
+          sort_order: -20,
           free_quantity_limit: 0,
           extra_unit_price: 0,
           options: doughsToUse.map((dough: any) => ({
@@ -619,7 +621,8 @@ export function ProductModal({ product, open, onClose }: ProductModalProps) {
             min_selections: effectiveCrustRequired ? 1 : 0,
             max_selections: effectiveCrustMax,
             selection_type: effectiveCrustMax === 1 ? 'single' : 'multiple',
-            sort_order: maxUserSortOrder + 100,
+            // Always show pizza config first: Tamanho → Massa → Borda
+            sort_order: -10,
             free_quantity_limit: 0,
             extra_unit_price: 0,
             options: crustsToUse.map((crust: any) => ({

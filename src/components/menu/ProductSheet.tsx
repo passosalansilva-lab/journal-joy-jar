@@ -279,7 +279,6 @@ export function ProductSheet({ product, open, onClose, primaryColor }: ProductSh
       const [
         groupsResult,
         optionsResult,
-        sizesResult,
         doughTypesResult,
         crustLinksResult,
         globalCrustFlavorsResult,
@@ -287,6 +286,7 @@ export function ProductSheet({ product, open, onClose, primaryColor }: ProductSh
         acaiSizesResult,
         pizzaCategoryResult,
         pizzaCategorySettingsResult,
+        pizzaProductSettingsResult,
       ] = await Promise.all([
         supabase
           .from('product_option_groups')
@@ -299,17 +299,11 @@ export function ProductSheet({ product, open, onClose, primaryColor }: ProductSh
           .eq('product_id', product.id)
           .eq('is_available', true)
           .order('sort_order'),
-        categoryId
-          ? supabase
-              .from('pizza_category_sizes')
-              .select('id, name, base_price, max_flavors, slices, sort_order')
-              .eq('category_id', categoryId)
-              .order('sort_order')
-          : Promise.resolve({ data: null, error: null } as any),
         supabase
           .from('pizza_dough_types')
           .select('id, name, extra_price, active')
           .eq('active', true),
+        // Legacy fallback for filled crusts (only used if the product doesn't define its own "Borda")
         supabase
           .from('pizza_product_crust_flavors')
           .select('id, product_id, crust_flavor_id, pizza_crust_flavors ( id, name, extra_price, active )')
@@ -346,11 +340,16 @@ export function ProductSheet({ product, open, onClose, primaryColor }: ProductSh
               .eq('category_id', categoryId)
               .maybeSingle()
           : Promise.resolve({ data: null, error: null } as any),
+        // Product-specific pizza settings (takes priority over category settings)
+        supabase
+          .from('pizza_product_settings')
+          .select('*')
+          .eq('product_id', product.id)
+          .maybeSingle(),
       ]);
 
       const { data: groupsData, error: groupsError } = groupsResult as any;
       const { data: optionsData, error: optionsError } = optionsResult as any;
-      const { data: sizesData, error: sizesError } = sizesResult as any;
       const { data: doughTypes, error: doughTypesError } = doughTypesResult as any;
       const { data: crustLinks, error: crustLinksError } = crustLinksResult as any;
       const { data: globalCrustFlavors, error: globalCrustFlavorsError } = globalCrustFlavorsResult as any;
@@ -358,30 +357,63 @@ export function ProductSheet({ product, open, onClose, primaryColor }: ProductSh
       const { data: acaiSizesData, error: acaiSizesError } = acaiSizesResult as any;
       const { data: pizzaCategoryData, error: pizzaCategoryError } = pizzaCategoryResult as any;
       const { data: pizzaCategorySettingsData } = pizzaCategorySettingsResult as any;
+      const { data: pizzaProductSettingsData, error: pizzaProductSettingsError } = pizzaProductSettingsResult as any;
 
       if (groupsError) throw groupsError;
       if (optionsError) throw optionsError;
-      if (sizesError) throw sizesError;
       if (doughTypesError) throw doughTypesError;
       if (crustLinksError) throw crustLinksError;
       if (globalCrustFlavorsError) throw globalCrustFlavorsError;
       if (acaiCategoryError) throw acaiCategoryError;
       if (acaiSizesError) throw acaiSizesError;
       if (pizzaCategoryError) throw pizzaCategoryError;
+      if (pizzaProductSettingsError) throw pizzaProductSettingsError;
 
       const isAcaiCategory = !!acaiCategoryData;
       const isPizzaCategory = !!pizzaCategoryData;
       const hasAcaiSizes = isAcaiCategory && acaiSizesData && Array.isArray(acaiSizesData) && acaiSizesData.length > 0;
-      const hasPizzaSizes = isPizzaCategory && sizesData && Array.isArray(sizesData) && sizesData.length > 0;
-      
-      // Pizza category settings with defaults
-      const pizzaSettings = pizzaCategorySettingsData || {};
-      const doughMaxSelections = pizzaSettings.dough_max_selections ?? 1;
-      const doughIsRequired = pizzaSettings.dough_is_required ?? true;
-      const crustMaxSelections = pizzaSettings.crust_max_selections ?? 1;
-      const crustIsRequired = pizzaSettings.crust_is_required ?? false;
 
-      const groups: OptionGroup[] = (groupsData || []).map((group: any) => ({
+      // Pizza settings: product settings take priority over category settings
+      const productSettings = pizzaProductSettingsData || {};
+      const categorySettings = pizzaCategorySettingsData || {};
+      const doughMaxSelections = productSettings.dough_max_selections ?? categorySettings.dough_max_selections ?? 1;
+      const doughIsRequired = productSettings.dough_is_required ?? categorySettings.dough_is_required ?? true;
+      const crustMaxSelections = productSettings.crust_max_selections ?? categorySettings.crust_max_selections ?? 1;
+      const crustIsRequired = productSettings.crust_is_required ?? categorySettings.crust_is_required ?? false;
+
+      // Pizza configuration is per-product. Identify the product-level system groups.
+      const allProductGroups = groupsData || [];
+      const allProductOptions = optionsData || [];
+
+      const productSizeGroup = allProductGroups.find((g: any) => {
+        const name = (g.name || '').toLowerCase().trim();
+        return name === 'tamanho' || name === 'tamanhos' || name.includes('tamanho');
+      });
+      const productDoughGroup = allProductGroups.find((g: any) => {
+        const name = (g.name || '').toLowerCase().trim();
+        return name.includes('massa') || name === 'massas' || name === 'tipo de massa';
+      });
+      const productCrustGroup = allProductGroups.find((g: any) => {
+        const name = (g.name || '').toLowerCase().trim();
+        return name.includes('borda') || name === 'bordas';
+      });
+
+      const productSizeOptions = productSizeGroup
+        ? allProductOptions.filter((o: any) => o.group_id === productSizeGroup.id)
+        : [];
+      const productDoughOptions = productDoughGroup
+        ? allProductOptions.filter((o: any) => o.group_id === productDoughGroup.id)
+        : [];
+      const productCrustOptions = productCrustGroup
+        ? allProductOptions.filter((o: any) => o.group_id === productCrustGroup.id)
+        : [];
+
+      const pizzaSystemGroupIds = [productSizeGroup?.id, productDoughGroup?.id, productCrustGroup?.id].filter(Boolean);
+      const filteredGroupsData = isPizzaCategory
+        ? (allProductGroups || []).filter((group: any) => !pizzaSystemGroupIds.includes(group.id))
+        : (allProductGroups || []);
+
+      const groups: OptionGroup[] = filteredGroupsData.map((group: any) => ({
         ...group,
         free_quantity_limit: group.free_quantity_limit ?? 0,
         extra_unit_price: group.extra_unit_price ?? 0,
@@ -407,8 +439,12 @@ export function ProductSheet({ product, open, onClose, primaryColor }: ProductSh
         });
       }
 
-      if (hasPizzaSizes) {
-        const sizeGroup: OptionGroup = {
+      const maxUserSortOrder = groups.reduce((max, g) => Math.max(max, g.sort_order ?? 0), 0);
+
+      // Pizza: show only per-product size group (no category sizes)
+      const hasProductSizes = isPizzaCategory && productSizeOptions.length > 0;
+      if (hasProductSizes) {
+        groups.push({
           id: 'pizza-size',
           name: 'Tamanho',
           description: 'Selecione o tamanho da pizza',
@@ -416,21 +452,21 @@ export function ProductSheet({ product, open, onClose, primaryColor }: ProductSh
           min_selections: 1,
           max_selections: 1,
           selection_type: 'single',
-          sort_order: -2,
+          // Always show pizza config first: Tamanho → Massa → Borda
+          sort_order: -30,
           free_quantity_limit: 0,
           extra_unit_price: 0,
-          options: (sizesData as any[]).map((size) => ({
+          options: productSizeOptions.map((size: any) => ({
             id: size.id,
             name: size.name,
-            description: size.slices ? `${size.slices} pedaços` : (size.max_flavors ? `Até ${size.max_flavors} sabores` : null),
-            price_modifier: Number(size.base_price ?? 0),
+            description: null,
+            price_modifier: Number(size.price_modifier ?? 0),
             is_required: true,
             is_available: true,
             sort_order: size.sort_order ?? 0,
             group_id: 'pizza-size',
           })),
-        };
-        groups.push(sizeGroup);
+        });
       }
 
       if (hasAcaiSizes && categoryId) {
@@ -539,73 +575,87 @@ export function ProductSheet({ product, open, onClose, primaryColor }: ProductSh
         });
       }
 
-      if (isPizzaCategory && doughTypes && Array.isArray(doughTypes) && doughTypes.length > 0) {
-        const doughGroup: OptionGroup = {
+      // Dough group: prefer product-specific doughs, then global doughs
+      const hasProductDoughs = productDoughOptions.length > 0;
+      const hasGlobalDoughs = doughTypes && Array.isArray(doughTypes) && doughTypes.length > 0;
+
+      if (isPizzaCategory && (hasProductDoughs || hasGlobalDoughs)) {
+        const doughsToUse = hasProductDoughs ? productDoughOptions : (doughTypes as any[]);
+        const effectiveDoughRequired = hasProductDoughs
+          ? (productDoughGroup?.is_required ?? doughIsRequired)
+          : doughIsRequired;
+        const effectiveDoughMax = hasProductDoughs
+          ? (productDoughGroup?.max_selections ?? doughMaxSelections)
+          : doughMaxSelections;
+
+        groups.push({
           id: 'pizza-dough',
-          name: 'Tipo de massa',
+          name: hasProductDoughs ? (productDoughGroup?.name || 'Massa') : 'Tipo de massa',
           description: null,
-          is_required: doughIsRequired,
-          min_selections: doughIsRequired ? 1 : 0,
-          max_selections: doughMaxSelections,
-          selection_type: doughMaxSelections === 1 ? 'single' : 'multiple',
-          sort_order: -1,
+          is_required: effectiveDoughRequired,
+          min_selections: effectiveDoughRequired ? 1 : 0,
+          max_selections: effectiveDoughMax,
+          selection_type: effectiveDoughMax === 1 ? 'single' : 'multiple',
+          // Always show pizza config first: Tamanho → Massa → Borda
+          sort_order: -20,
           free_quantity_limit: 0,
           extra_unit_price: 0,
-          options: (doughTypes as any[]).map((dough) => ({
+          options: doughsToUse.map((dough: any) => ({
             id: dough.id,
             name: dough.name,
-            price_modifier: Number(dough.extra_price ?? 0),
+            price_modifier: Number(hasProductDoughs ? (dough.price_modifier ?? 0) : (dough.extra_price ?? 0)),
             is_required: false,
             is_available: true,
-            sort_order: 0,
+            sort_order: dough.sort_order ?? 0,
             group_id: 'pizza-dough',
           })),
-        };
-        groups.push(doughGroup);
+        });
       }
 
-      if (isPizzaCategory) {
-        let crustFlavorOptions: ProductOption[] = [];
+      // Crust group: prefer product-specific crusts; if missing, fall back to legacy filled-crust links
+      const hasProductCrusts = productCrustOptions.length > 0;
+      const hasProductCrustLinks = crustLinks && Array.isArray(crustLinks) && crustLinks.length > 0;
 
-        if (crustLinks && Array.isArray(crustLinks) && crustLinks.length > 0) {
-          crustFlavorOptions = crustLinks
-            .filter((link: any) => link.pizza_crust_flavors?.active)
-            .map((link: any) => ({
-              id: link.pizza_crust_flavors.id,
-              name: link.pizza_crust_flavors.name,
-              price_modifier: Number(link.pizza_crust_flavors.extra_price ?? 0),
-              is_required: false,
-              is_available: true,
-              sort_order: 0,
-              group_id: 'pizza-crust',
-            }));
-        } else if (globalCrustFlavors && Array.isArray(globalCrustFlavors) && globalCrustFlavors.length > 0) {
-          crustFlavorOptions = globalCrustFlavors.map((crust: any) => ({
-            id: crust.id,
-            name: crust.name,
-            price_modifier: Number(crust.extra_price ?? 0),
-            is_required: false,
-            is_available: true,
-            sort_order: 0,
-            group_id: 'pizza-crust',
-          }));
+      if (isPizzaCategory && (hasProductCrusts || hasProductCrustLinks)) {
+        let crustsToUse: any[] = [];
+
+        if (hasProductCrusts) {
+          crustsToUse = productCrustOptions;
+        } else if (hasProductCrustLinks) {
+          const flavorsSource = (crustLinks as any[]).map((link) => link.pizza_crust_flavors);
+          crustsToUse = flavorsSource.filter((flavor: any) => flavor && flavor.active);
         }
 
-        if (crustFlavorOptions.length > 0) {
-          const crustGroup: OptionGroup = {
+        if (crustsToUse.length > 0) {
+          const effectiveCrustRequired = hasProductCrusts
+            ? (productCrustGroup?.is_required ?? crustIsRequired)
+            : crustIsRequired;
+          const effectiveCrustMax = hasProductCrusts
+            ? (productCrustGroup?.max_selections ?? crustMaxSelections)
+            : crustMaxSelections;
+
+          groups.push({
             id: 'pizza-crust',
-            name: 'Borda recheada',
-            description: 'Opcional - escolha uma borda recheada',
-            is_required: crustIsRequired,
-            min_selections: crustIsRequired ? 1 : 0,
-            max_selections: crustMaxSelections,
-            selection_type: crustMaxSelections === 1 ? 'single' : 'multiple',
-            sort_order: 0,
+            name: hasProductCrusts ? (productCrustGroup?.name || 'Borda') : 'Borda',
+            description: null,
+            is_required: effectiveCrustRequired,
+            min_selections: effectiveCrustRequired ? 1 : 0,
+            max_selections: effectiveCrustMax,
+            selection_type: effectiveCrustMax === 1 ? 'single' : 'multiple',
+            // Always show pizza config first: Tamanho → Massa → Borda
+            sort_order: -10,
             free_quantity_limit: 0,
             extra_unit_price: 0,
-            options: crustFlavorOptions,
-          };
-          groups.push(crustGroup);
+            options: crustsToUse.map((crust: any) => ({
+              id: crust.id,
+              name: crust.name,
+              price_modifier: Number(hasProductCrusts ? (crust.price_modifier ?? 0) : (crust.extra_price ?? 0)),
+              is_required: false,
+              is_available: true,
+              sort_order: crust.sort_order ?? 0,
+              group_id: 'pizza-crust',
+            })),
+          });
         }
       }
 

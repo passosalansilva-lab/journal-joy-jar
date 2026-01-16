@@ -101,6 +101,9 @@ export function HalfHalfPizzaModal({
   // Map: productId -> (normalizedSizeName -> price)
   const [sizePriceByProduct, setSizePriceByProduct] = useState<Record<string, Record<string, number>>>({});
 
+  // Map: productId -> product settings (for pricing rule override)
+  const [productSettings, setProductSettings] = useState<Record<string, { half_half_pricing_rule?: string; half_half_discount_percentage?: number }>>({});
+
   const normalizeSizeKey = (value: string) =>
     value
       .toLowerCase()
@@ -116,12 +119,36 @@ export function HalfHalfPizzaModal({
     return Number(product.price);
   };
 
-  // Load pizza sizes when modal opens
+  // Load pizza sizes and product settings when modal opens
   useEffect(() => {
     if (open && pizzaProducts.length > 0) {
       loadPizzaSizes();
+      loadProductSettings();
     }
   }, [open, pizzaProducts]);
+
+  const loadProductSettings = async () => {
+    try {
+      const productIds = pizzaProducts.map((p) => p.id);
+      const { data } = await supabase
+        .from('pizza_product_settings')
+        .select('product_id, half_half_pricing_rule, half_half_discount_percentage')
+        .in('product_id', productIds);
+
+      if (data) {
+        const map: Record<string, { half_half_pricing_rule?: string; half_half_discount_percentage?: number }> = {};
+        data.forEach((row: any) => {
+          map[row.product_id] = {
+            half_half_pricing_rule: row.half_half_pricing_rule,
+            half_half_discount_percentage: row.half_half_discount_percentage,
+          };
+        });
+        setProductSettings(map);
+      }
+    } catch (err) {
+      console.error('Error loading product settings:', err);
+    }
+  };
 
   useEffect(() => {
     if (open && step === "options" && selectedFlavors.length > 0) {
@@ -573,7 +600,32 @@ export function HalfHalfPizzaModal({
       // Regra do meio a meio por TAMANHO: usa o preço do tamanho selecionado para cada sabor
       const prices = selectedFlavors.map((f) => getFlavorPriceForSelectedSize(f));
 
-      switch (pricingRule) {
+      // Determinar a regra de preço a usar:
+      // Prioridade: regra do produto (se todos os sabores tiverem a mesma regra) > regra da categoria
+      let effectivePricingRule = pricingRule;
+      
+      // Verificar se algum dos sabores tem regra específica
+      const productRules = selectedFlavors
+        .map((f) => productSettings[f.id]?.half_half_pricing_rule)
+        .filter((r) => r && r.trim() !== '');
+      
+      if (productRules.length > 0) {
+        // Se todos os sabores selecionados têm a mesma regra, usar ela
+        // Se têm regras diferentes, usar a mais restritiva (highest > average > sum)
+        const uniqueRules = [...new Set(productRules)];
+        if (uniqueRules.length === 1) {
+          effectivePricingRule = uniqueRules[0] as 'highest' | 'average' | 'sum';
+        } else {
+          // Regras conflitantes: priorizar 'highest' se presente
+          if (uniqueRules.includes('highest')) {
+            effectivePricingRule = 'highest';
+          } else if (uniqueRules.includes('average')) {
+            effectivePricingRule = 'average';
+          }
+        }
+      }
+
+      switch (effectivePricingRule) {
         case 'highest':
           basePrice = Math.max(...prices);
           break;
@@ -599,9 +651,20 @@ export function HalfHalfPizzaModal({
       return sum + opt.price_modifier;
     }, 0);
 
+    // Determinar desconto: prioridade produto > categoria
+    let effectiveDiscount = discountPercentage;
+    const productDiscounts = selectedFlavors
+      .map((f) => productSettings[f.id]?.half_half_discount_percentage)
+      .filter((d) => typeof d === 'number' && d > 0);
+    
+    if (productDiscounts.length > 0) {
+      // Usar a média dos descontos configurados nos produtos
+      effectiveDiscount = productDiscounts.reduce((sum, d) => sum + (d || 0), 0) / productDiscounts.length;
+    }
+
     // Apply discount if configured
     const subtotal = basePrice + optionsPrice;
-    const discount = discountPercentage > 0 ? subtotal * (discountPercentage / 100) : 0;
+    const discount = effectiveDiscount > 0 ? subtotal * (effectiveDiscount / 100) : 0;
 
     return (subtotal - discount) * quantity;
   };

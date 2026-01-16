@@ -27,6 +27,12 @@ interface OptionItem {
   group_id: string;
 }
 
+interface EditingItem {
+  id: string;
+  name: string;
+  price_modifier: number;
+}
+
 interface OptionGroup {
   id: string;
   name: string;
@@ -79,6 +85,10 @@ export function ProductPizzaSettings({
   const [crustGroupName, setCrustGroupName] = useState('Borda');
   const [editingDoughName, setEditingDoughName] = useState(false);
   const [editingCrustName, setEditingCrustName] = useState(false);
+  
+  // Editing item states
+  const [editingItem, setEditingItem] = useState<EditingItem | null>(null);
+  const [editingType, setEditingType] = useState<'size' | 'dough' | 'crust' | null>(null);
   
   // Saving states
   const [saving, setSaving] = useState(false);
@@ -257,6 +267,50 @@ export function ProductPizzaSettings({
     }
   };
 
+  // Start editing an item
+  const startEditItem = (item: OptionItem, type: 'size' | 'dough' | 'crust') => {
+    setEditingItem({ id: item.id, name: item.name, price_modifier: item.price_modifier });
+    setEditingType(type);
+  };
+
+  // Cancel editing
+  const cancelEditItem = () => {
+    setEditingItem(null);
+    setEditingType(null);
+  };
+
+  // Save edited item
+  const saveEditItem = async () => {
+    if (!editingItem || !editingType) return;
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from('product_options')
+        .update({ name: editingItem.name.trim(), price_modifier: editingItem.price_modifier })
+        .eq('id', editingItem.id);
+      
+      if (error) throw error;
+      
+      // Update local state
+      const updatedItem = { ...editingItem, name: editingItem.name.trim() };
+      if (editingType === 'size') {
+        setSizes(sizes.map(s => s.id === editingItem.id ? { ...s, ...updatedItem } : s));
+      } else if (editingType === 'dough') {
+        setDoughs(doughs.map(d => d.id === editingItem.id ? { ...d, ...updatedItem } : d));
+      } else {
+        setCrusts(crusts.map(c => c.id === editingItem.id ? { ...c, ...updatedItem } : c));
+      }
+      
+      setEditingItem(null);
+      setEditingType(null);
+      toast({ title: 'Atualizado com sucesso' });
+    } catch (error: any) {
+      toast({ title: 'Erro ao salvar', description: error.message, variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   // Auto-save group settings when changed
   const updateGroupSettings = async (
     type: 'dough' | 'crust',
@@ -380,9 +434,39 @@ export function ProductPizzaSettings({
             <TabsContent value="sizes" className="space-y-3 mt-3">
               {sizes.map(s => (
                 <div key={s.id} className="flex items-center gap-2 p-2 rounded-md border bg-muted/30">
-                  <span className="flex-1 text-sm">{s.name}</span>
-                  <span className="text-sm text-muted-foreground">{s.price_modifier > 0 ? `+R$ ${s.price_modifier.toFixed(2)}` : 'Base'}</span>
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => deleteOption(s.id, 'size')}><Trash2 className="h-3 w-3 text-destructive" /></Button>
+                  {editingItem?.id === s.id && editingType === 'size' ? (
+                    <>
+                      <Input 
+                        value={editingItem.name} 
+                        onChange={(e) => setEditingItem({ ...editingItem, name: e.target.value })} 
+                        className="flex-1 h-8 text-sm" 
+                      />
+                      <div className="w-24">
+                        <CurrencyInput 
+                          value={editingItem.price_modifier} 
+                          onChange={(v) => setEditingItem({ ...editingItem, price_modifier: parseFloat(String(v)) || 0 })} 
+                          className="h-8 text-sm" 
+                        />
+                      </div>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={saveEditItem} disabled={saving}>
+                        {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3 text-green-600" />}
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={cancelEditItem}>
+                        <Trash2 className="h-3 w-3 text-muted-foreground" />
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="flex-1 text-sm">{s.name}</span>
+                      <span className="text-sm text-muted-foreground">{s.price_modifier > 0 ? `+R$ ${s.price_modifier.toFixed(2)}` : 'Base'}</span>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => startEditItem(s, 'size')}>
+                        <Pencil className="h-3 w-3 text-muted-foreground" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => deleteOption(s.id, 'size')}>
+                        <Trash2 className="h-3 w-3 text-destructive" />
+                      </Button>
+                    </>
+                  )}
                 </div>
               ))}
               <div className="flex items-center gap-2 p-2 rounded-md border border-dashed">
@@ -447,9 +531,39 @@ export function ProductPizzaSettings({
               )}
               {doughs.map(d => (
                 <div key={d.id} className="flex items-center gap-2 p-2 rounded-md border bg-muted/30">
-                  <span className="flex-1 text-sm">{d.name}</span>
-                  <span className="text-sm text-muted-foreground">{d.price_modifier > 0 ? `+R$ ${d.price_modifier.toFixed(2)}` : 'Grátis'}</span>
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => deleteOption(d.id, 'dough')}><Trash2 className="h-3 w-3 text-destructive" /></Button>
+                  {editingItem?.id === d.id && editingType === 'dough' ? (
+                    <>
+                      <Input 
+                        value={editingItem.name} 
+                        onChange={(e) => setEditingItem({ ...editingItem, name: e.target.value })} 
+                        className="flex-1 h-8 text-sm" 
+                      />
+                      <div className="w-24">
+                        <CurrencyInput 
+                          value={editingItem.price_modifier} 
+                          onChange={(v) => setEditingItem({ ...editingItem, price_modifier: parseFloat(String(v)) || 0 })} 
+                          className="h-8 text-sm" 
+                        />
+                      </div>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={saveEditItem} disabled={saving}>
+                        {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3 text-green-600" />}
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={cancelEditItem}>
+                        <Trash2 className="h-3 w-3 text-muted-foreground" />
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="flex-1 text-sm">{d.name}</span>
+                      <span className="text-sm text-muted-foreground">{d.price_modifier > 0 ? `+R$ ${d.price_modifier.toFixed(2)}` : 'Grátis'}</span>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => startEditItem(d, 'dough')}>
+                        <Pencil className="h-3 w-3 text-muted-foreground" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => deleteOption(d.id, 'dough')}>
+                        <Trash2 className="h-3 w-3 text-destructive" />
+                      </Button>
+                    </>
+                  )}
                 </div>
               ))}
               <div className="flex items-center gap-2 p-2 rounded-md border border-dashed">
@@ -514,9 +628,39 @@ export function ProductPizzaSettings({
               )}
               {crusts.map(c => (
                 <div key={c.id} className="flex items-center gap-2 p-2 rounded-md border bg-muted/30">
-                  <span className="flex-1 text-sm">{c.name}</span>
-                  <span className="text-sm text-muted-foreground">{c.price_modifier > 0 ? `+R$ ${c.price_modifier.toFixed(2)}` : 'Grátis'}</span>
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => deleteOption(c.id, 'crust')}><Trash2 className="h-3 w-3 text-destructive" /></Button>
+                  {editingItem?.id === c.id && editingType === 'crust' ? (
+                    <>
+                      <Input 
+                        value={editingItem.name} 
+                        onChange={(e) => setEditingItem({ ...editingItem, name: e.target.value })} 
+                        className="flex-1 h-8 text-sm" 
+                      />
+                      <div className="w-24">
+                        <CurrencyInput 
+                          value={editingItem.price_modifier} 
+                          onChange={(v) => setEditingItem({ ...editingItem, price_modifier: parseFloat(String(v)) || 0 })} 
+                          className="h-8 text-sm" 
+                        />
+                      </div>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={saveEditItem} disabled={saving}>
+                        {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3 text-green-600" />}
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={cancelEditItem}>
+                        <Trash2 className="h-3 w-3 text-muted-foreground" />
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="flex-1 text-sm">{c.name}</span>
+                      <span className="text-sm text-muted-foreground">{c.price_modifier > 0 ? `+R$ ${c.price_modifier.toFixed(2)}` : 'Grátis'}</span>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => startEditItem(c, 'crust')}>
+                        <Pencil className="h-3 w-3 text-muted-foreground" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => deleteOption(c.id, 'crust')}>
+                        <Trash2 className="h-3 w-3 text-destructive" />
+                      </Button>
+                    </>
+                  )}
                 </div>
               ))}
               <div className="flex items-center gap-2 p-2 rounded-md border border-dashed">

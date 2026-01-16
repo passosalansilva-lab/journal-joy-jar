@@ -705,12 +705,37 @@ export function ProductSheet({ product, open, onClose, primaryColor }: ProductSh
   });
 
   const handleSingleSelect = (group: OptionGroup, option: ProductOption) => {
+    const isCurrentlySelected = selectedOptions.some(
+      (o) => o.groupId === group.id && o.optionId === option.id
+    );
+
+    const effectiveMinSelections =
+      typeof group.min_selections === 'number'
+        ? group.min_selections
+        : group.is_required
+          ? 1
+          : 0;
+
+    // If optional and user clicks the same option again → deselect
+    if (effectiveMinSelections === 0 && isCurrentlySelected) {
+      let filtered = selectedOptions.filter(
+        (o) => !(o.groupId === group.id && o.optionId === option.id)
+      );
+
+      if (group.id === 'acai-size') {
+        filtered = filtered.filter((o) => !o.groupId.startsWith('acai-group-'));
+      }
+
+      setSelectedOptions(filtered);
+      return;
+    }
+
     let filtered = selectedOptions.filter((o) => o.groupId !== group.id);
-    
+
     if (group.id === 'acai-size') {
       filtered = filtered.filter((o) => !o.groupId.startsWith('acai-group-'));
     }
-    
+
     setSelectedOptions([
       ...filtered,
       {
@@ -724,10 +749,14 @@ export function ProductSheet({ product, open, onClose, primaryColor }: ProductSh
   };
 
   const handleMultipleToggle = (group: OptionGroup, option: ProductOption) => {
-    const currentlySelected = selectedOptions.some((o) => o.optionId === option.id);
+    const currentlySelected = selectedOptions.some(
+      (o) => o.groupId === group.id && o.optionId === option.id
+    );
 
     if (currentlySelected) {
-      setSelectedOptions((prev) => prev.filter((o) => o.optionId !== option.id));
+      setSelectedOptions((prev) =>
+        prev.filter((o) => !(o.groupId === group.id && o.optionId === option.id))
+      );
     } else {
       const groupCount = selectedOptions.filter((o) => o.groupId === group.id).length;
       const maxAllowed = group.selection_type === 'half_half' ? 2 : group.max_selections;

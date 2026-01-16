@@ -607,9 +607,9 @@ const canSeeItem = (item: NavItem): boolean => {
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleSignOut} className="text-destructive">
+                  <DropdownMenuItem onClick={handleSignOutClick} className="text-destructive">
                     <LogOut className="mr-2 h-4 w-4" />
-                    Sair
+                    {isElectronApp ? "Fechar aplicativo" : "Sair"}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>

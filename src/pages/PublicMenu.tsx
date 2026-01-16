@@ -899,8 +899,23 @@ function PublicMenuContent() {
       setSelectedCombo(product);
       return;
     }
+    
+    // Se não foi passado promotionId, detectar automaticamente se o produto está em uma promoção
+    let finalPromotionId = promotionId;
+    if (!finalPromotionId && promotions.length > 0) {
+      const activePromos = promotions.filter(p => p.is_active);
+      const matchingPromo = activePromos.find(promo => 
+        promo.product_id === product.id || 
+        (promo.category_id && promo.category_id === product.category_id)
+      );
+      if (matchingPromo) {
+        finalPromotionId = matchingPromo.id;
+        console.log(`[PublicMenu] Auto-detected promotion ${matchingPromo.id} for product ${product.id}`);
+      }
+    }
+    
     setSelectedProduct(product);
-    setSelectedPromotionId(promotionId);
+    setSelectedPromotionId(finalPromotionId);
   };
 
   const handleToggleFavoriteClick = (productId: string, e: React.MouseEvent) => {

@@ -119,10 +119,15 @@ export async function trackCartConversions(
 ) {
   const sessionId = sessionStorage.getItem('promotion_session_id') || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   
+  console.log('[trackCartConversions] Starting conversion tracking for order:', orderId);
+  console.log('[trackCartConversions] Items received:', items.length);
+  console.log('[trackCartConversions] Items with promotionId:', items.filter(i => i.promotionId).length);
+  
   // Group items by promotionId and calculate revenue per promotion
   const promotionRevenue = new Map<string, number>();
   
-  items.forEach((item) => {
+  items.forEach((item, idx) => {
+    console.log(`[trackCartConversions] Item ${idx}: promotionId=${item.promotionId || 'NONE'}, price=${item.price}`);
     if (item.promotionId) {
       const itemTotal = (item.price + item.options.reduce((s, o) => s + o.priceModifier, 0)) * item.quantity;
       const current = promotionRevenue.get(item.promotionId) || 0;

@@ -1528,6 +1528,7 @@ export function CheckoutPage({ companyId, companyName, companySlug, companyPhone
       clearCart();
       
       // Track promotion conversions
+      console.log('[CheckoutPage] Tracking conversions for items:', items.map(i => ({ productId: i.productId, promotionId: i.promotionId })));
       trackCartConversions(items, companyId, newOrderId);
 
       toast({

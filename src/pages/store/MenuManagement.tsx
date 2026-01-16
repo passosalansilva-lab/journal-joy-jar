@@ -14,7 +14,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Plus, Loader2, GripVertical, Trash2, ChevronDown, Settings2, Link2, Share2, Clock, FileText, X, Upload, Eye, TrendingUp, ArrowUpDown, Pencil } from 'lucide-react';
+import { Plus, Loader2, GripVertical, Trash2, ChevronDown, Settings2, Link2, Share2, Clock, FileText, X, Upload, Eye, TrendingUp, ArrowUpDown, Pencil, Info } from 'lucide-react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -1369,7 +1369,7 @@ export default function MenuManagement() {
                     >
                       <p className="font-medium text-sm">🍕 Pizza</p>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        Tamanhos, bordas, sabores e meia/meia
+                        Tamanhos, bordas, sabores e meio a meio
                       </p>
                     </button>
                     <button
@@ -1458,7 +1458,7 @@ export default function MenuManagement() {
                 <div className="space-y-4 pt-2 border-t">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-medium">Permitir meia a meia</p>
+                      <p className="text-sm font-medium">Permitir meio a meio</p>
                       <p className="text-xs text-muted-foreground">
                         Clientes podem montar pizzas com sabores diferentes
                       </p>
@@ -1477,12 +1477,12 @@ export default function MenuManagement() {
                   {pizzaCategoryDialogSettings.allowHalfHalf && (
                     <>
                       <div className="space-y-2">
-                        <label className="text-sm font-medium">Regra de preço do meia a meia</label>
+                        <label className="text-sm font-medium">Regra de preço do meio a meio</label>
                         <div className="grid grid-cols-3 gap-2">
                           <button
                             type="button"
                             className={cn(
-                              "p-2 rounded-lg border-2 text-center transition-all",
+                              "p-2 rounded-lg border-2 text-center transition-all relative group",
                               pizzaCategoryDialogSettings.halfHalfPricingRule === 'average'
                                 ? "border-primary bg-primary/5"
                                 : "border-border hover:border-primary/50"
@@ -1494,13 +1494,21 @@ export default function MenuManagement() {
                               }))
                             }
                           >
+                            <div className="absolute top-1 right-1">
+                              <div className="relative">
+                                <Info className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground cursor-help" />
+                                <div className="absolute bottom-full right-0 mb-2 w-48 p-2 bg-popover text-popover-foreground text-xs rounded-md shadow-lg border opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                                  Soma os preços e divide pelo número de sabores. Ex: Pizza A (R$60) + Pizza B (R$40) = R$50
+                                </div>
+                              </div>
+                            </div>
                             <p className="text-sm font-medium">Média</p>
                             <p className="text-xs text-muted-foreground">dos sabores</p>
                           </button>
                           <button
                             type="button"
                             className={cn(
-                              "p-2 rounded-lg border-2 text-center transition-all",
+                              "p-2 rounded-lg border-2 text-center transition-all relative group",
                               pizzaCategoryDialogSettings.halfHalfPricingRule === 'highest'
                                 ? "border-primary bg-primary/5"
                                 : "border-border hover:border-primary/50"
@@ -1512,13 +1520,21 @@ export default function MenuManagement() {
                               }))
                             }
                           >
+                            <div className="absolute top-1 right-1">
+                              <div className="relative">
+                                <Info className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground cursor-help" />
+                                <div className="absolute bottom-full right-0 mb-2 w-48 p-2 bg-popover text-popover-foreground text-xs rounded-md shadow-lg border opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                                  Cobra o valor do sabor mais caro. Ex: Pizza A (R$60) + Pizza B (R$40) = R$60
+                                </div>
+                              </div>
+                            </div>
                             <p className="text-sm font-medium">Maior</p>
                             <p className="text-xs text-muted-foreground">sabor mais caro</p>
                           </button>
                           <button
                             type="button"
                             className={cn(
-                              "p-2 rounded-lg border-2 text-center transition-all",
+                              "p-2 rounded-lg border-2 text-center transition-all relative group",
                               pizzaCategoryDialogSettings.halfHalfPricingRule === 'sum'
                                 ? "border-primary bg-primary/5"
                                 : "border-border hover:border-primary/50"
@@ -1530,6 +1546,14 @@ export default function MenuManagement() {
                               }))
                             }
                           >
+                            <div className="absolute top-1 right-1">
+                              <div className="relative">
+                                <Info className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground cursor-help" />
+                                <div className="absolute bottom-full right-0 mb-2 w-48 p-2 bg-popover text-popover-foreground text-xs rounded-md shadow-lg border opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                                  Cobra metade de cada sabor. Ex: Pizza A (R$60 ÷ 2) + Pizza B (R$40 ÷ 2) = R$50
+                                </div>
+                              </div>
+                            </div>
                             <p className="text-sm font-medium">Soma</p>
                             <p className="text-xs text-muted-foreground">proporcional</p>
                           </button>

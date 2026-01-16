@@ -8,9 +8,10 @@ interface PizzaPreviewProps {
     image_url: string | null;
   }>;
   maxFlavors: number;
+  showDivisionLine?: boolean;
 }
 
-export function PizzaPreview({ flavors, maxFlavors }: PizzaPreviewProps) {
+export function PizzaPreview({ flavors, maxFlavors, showDivisionLine = true }: PizzaPreviewProps) {
   const slices = useMemo(() => {
     if (flavors.length === 0) return [];
 
@@ -57,17 +58,22 @@ export function PizzaPreview({ flavors, maxFlavors }: PizzaPreviewProps) {
       return {
         id: flavor.id,
         name: flavor.name,
+        image_url: flavor.image_url,
         pathData,
         color: colors[index % colors.length],
         // Text label position (middle of slice)
         labelAngle: startAngle + anglePerSlice / 2,
         labelX: centerX + (radius * 0.6) * Math.cos(((startAngle + anglePerSlice / 2) * Math.PI) / 180),
         labelY: centerY + (radius * 0.6) * Math.sin(((startAngle + anglePerSlice / 2) * Math.PI) / 180),
+        startAngle,
+        endAngle,
       };
     });
   }, [flavors]);
 
-  const hasImage = flavors.some((f) => !!f.image_url);
+  // Check if we have images for half-and-half display
+  const hasImages = flavors.filter(f => f.image_url).length >= 2;
+  const isTwoFlavors = flavors.length === 2;
 
   if (flavors.length === 0) {
     return (
@@ -120,9 +126,8 @@ export function PizzaPreview({ flavors, maxFlavors }: PizzaPreviewProps) {
     );
   }
 
-  if (hasImage) {
-    const firstWithImage = flavors.find((f) => f.image_url) || flavors[0];
-
+  // Special visual for half-and-half with images
+  if (isTwoFlavors && hasImages) {
     return (
       <motion.div
         className="w-full max-w-[300px] mx-auto space-y-2"
@@ -130,16 +135,115 @@ export function PizzaPreview({ flavors, maxFlavors }: PizzaPreviewProps) {
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.3, ease: "easeOut" }}
       >
-        <div className="relative aspect-square w-full overflow-hidden rounded-xl border border-border bg-muted">
+        <div className="relative aspect-square w-full overflow-hidden rounded-full border-4 border-amber-600 shadow-lg bg-amber-100">
+          {/* Left half - First flavor */}
+          <div className="absolute inset-0 overflow-hidden" style={{ clipPath: 'polygon(0 0, 50% 0, 50% 100%, 0 100%)' }}>
+            {flavors[0].image_url ? (
+              <img
+                src={flavors[0].image_url}
+                alt={flavors[0].name}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <div 
+                className="h-full w-full flex items-center justify-center"
+                style={{ backgroundColor: 'hsl(var(--primary))' }}
+              >
+                <span className="text-white font-bold text-lg rotate-[-90deg]">1</span>
+              </div>
+            )}
+          </div>
+          
+          {/* Right half - Second flavor */}
+          <div className="absolute inset-0 overflow-hidden" style={{ clipPath: 'polygon(50% 0, 100% 0, 100% 100%, 50% 100%)' }}>
+            {flavors[1].image_url ? (
+              <img
+                src={flavors[1].image_url}
+                alt={flavors[1].name}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <div 
+                className="h-full w-full flex items-center justify-center"
+                style={{ backgroundColor: 'hsl(var(--secondary))' }}
+              >
+                <span className="text-white font-bold text-lg rotate-90">2</span>
+              </div>
+            )}
+          </div>
+          
+          {/* Division line */}
+          {showDivisionLine && (
+            <motion.div 
+              className="absolute inset-y-0 left-1/2 w-1 bg-white shadow-lg"
+              style={{ transform: 'translateX(-50%)' }}
+              initial={{ scaleY: 0 }}
+              animate={{ scaleY: 1 }}
+              transition={{ delay: 0.3, duration: 0.4, ease: "easeOut" }}
+            />
+          )}
+          
+          {/* Center circle */}
+          <motion.div 
+            className="absolute top-1/2 left-1/2 w-12 h-12 -translate-x-1/2 -translate-y-1/2 rounded-full bg-amber-200 border-2 border-amber-600 shadow-md flex items-center justify-center"
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ delay: 0.4, duration: 0.3, ease: "backOut" }}
+          >
+            <span className="text-amber-800 font-bold text-xs">½+½</span>
+          </motion.div>
+        </div>
+        
+        {/* Legend */}
+        <motion.div 
+          className="space-y-1.5 mt-3"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3, duration: 0.3 }}
+        >
+          {flavors.map((flavor, index) => (
+            <div key={flavor.id} className="flex items-center gap-2 text-sm">
+              <div 
+                className="w-4 h-4 rounded-full border-2 flex-shrink-0 overflow-hidden"
+                style={{ borderColor: index === 0 ? 'hsl(var(--primary))' : 'hsl(var(--secondary))' }}
+              >
+                {flavor.image_url ? (
+                  <img src={flavor.image_url} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <div 
+                    className="w-full h-full" 
+                    style={{ backgroundColor: index === 0 ? 'hsl(var(--primary))' : 'hsl(var(--secondary))' }}
+                  />
+                )}
+              </div>
+              <span className="font-medium text-xs truncate">
+                {index + 1}. {flavor.name}
+              </span>
+            </div>
+          ))}
+        </motion.div>
+      </motion.div>
+    );
+  }
+
+  // Single flavor with image
+  if (flavors.length === 1 && flavors[0].image_url) {
+    return (
+      <motion.div
+        className="w-full max-w-[300px] mx-auto space-y-2"
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.3, ease: "easeOut" }}
+      >
+        <div className="relative aspect-square w-full overflow-hidden rounded-full border-4 border-amber-600 shadow-lg">
           <img
-            src={firstWithImage.image_url || ""}
-            alt={firstWithImage.name}
+            src={flavors[0].image_url}
+            alt={flavors[0].name}
             className="h-full w-full object-cover"
           />
-          <div className="absolute inset-x-2 bottom-2 rounded-md bg-background/80 px-2 py-1 text-[11px] shadow-sm">
-            <p className="font-semibold">Pizza meio a meio</p>
-            <p className="text-[10px] text-muted-foreground truncate">
-              {flavors.map((f) => f.name).join(" • ")}
+          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-3">
+            <p className="text-white text-sm font-semibold text-center truncate">
+              {flavors[0].name}
             </p>
           </div>
         </div>
@@ -147,6 +251,7 @@ export function PizzaPreview({ flavors, maxFlavors }: PizzaPreviewProps) {
     );
   }
 
+  // Default SVG-based visualization (for 3+ flavors or no images)
   return (
     <motion.div 
       className="relative w-full max-w-[300px] mx-auto aspect-square"
@@ -180,6 +285,13 @@ export function PizzaPreview({ flavors, maxFlavors }: PizzaPreviewProps) {
           >
             <circle cx="5" cy="5" r="1.5" fill="rgba(139, 69, 19, 0.3)" />
           </pattern>
+          
+          {/* Clip paths for image slices */}
+          {slices.map((slice) => (
+            <clipPath key={`clip-${slice.id}`} id={`clip-${slice.id}`}>
+              <path d={slice.pathData} />
+            </clipPath>
+          ))}
         </defs>
 
         {/* Outer crust - animated entry */}
@@ -226,20 +338,40 @@ export function PizzaPreview({ flavors, maxFlavors }: PizzaPreviewProps) {
                 ease: "backOut"
               }}
             >
-              {/* Slice fill */}
-              <motion.path
-                d={slice.pathData}
-                fill={slice.color}
-                stroke="#8B4513"
-                strokeWidth="2"
-                opacity="0.9"
-                whileHover={{ 
-                  opacity: 1,
-                  scale: 1.05,
-                  transformOrigin: "150px 150px"
-                }}
-                transition={{ duration: 0.2 }}
-              />
+              {/* Slice with image if available */}
+              {slice.image_url ? (
+                <>
+                  <image
+                    href={slice.image_url}
+                    x="20"
+                    y="20"
+                    width="260"
+                    height="260"
+                    preserveAspectRatio="xMidYMid slice"
+                    clipPath={`url(#clip-${slice.id})`}
+                  />
+                  <path
+                    d={slice.pathData}
+                    fill="none"
+                    stroke="#8B4513"
+                    strokeWidth="2"
+                  />
+                </>
+              ) : (
+                <motion.path
+                  d={slice.pathData}
+                  fill={slice.color}
+                  stroke="#8B4513"
+                  strokeWidth="2"
+                  opacity="0.9"
+                  whileHover={{ 
+                    opacity: 1,
+                    scale: 1.05,
+                    transformOrigin: "150px 150px"
+                  }}
+                  transition={{ duration: 0.2 }}
+                />
+              )}
               
               {/* Slice separator line */}
               <path
@@ -324,14 +456,18 @@ export function PizzaPreview({ flavors, maxFlavors }: PizzaPreviewProps) {
               layout
             >
               <motion.div
-                className="w-4 h-4 rounded-full border-2 flex-shrink-0"
+                className="w-4 h-4 rounded-full border-2 flex-shrink-0 overflow-hidden"
                 style={{
-                  backgroundColor: slice.color,
+                  backgroundColor: slice.image_url ? undefined : slice.color,
                   borderColor: slice.color,
                 }}
                 whileHover={{ scale: 1.2 }}
                 transition={{ duration: 0.2 }}
-              />
+              >
+                {slice.image_url && (
+                  <img src={slice.image_url} alt="" className="w-full h-full object-cover" />
+                )}
+              </motion.div>
               <span className="font-medium text-xs">
                 {index + 1}. {slice.name}
               </span>

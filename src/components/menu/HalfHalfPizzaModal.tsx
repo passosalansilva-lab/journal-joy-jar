@@ -55,6 +55,16 @@ interface HalfHalfPizzaModalProps {
   enableAddons: boolean;
   allowCrustExtraPrice: boolean;
   companyId: string;
+  pricingRule?: 'highest' | 'average' | 'sum';
+  discountPercentage?: number;
+}
+
+interface PizzaSize {
+  id: string;
+  name: string;
+  base_price: number;
+  max_flavors: number;
+  slices: number;
 }
 
 export function HalfHalfPizzaModal({
@@ -66,9 +76,11 @@ export function HalfHalfPizzaModal({
   enableAddons,
   allowCrustExtraPrice,
   companyId,
+  pricingRule = 'average',
+  discountPercentage = 0,
 }: HalfHalfPizzaModalProps) {
   const { addItem } = useCart();
-  const [step, setStep] = useState<"flavors" | "options">("flavors");
+  const [step, setStep] = useState<"size" | "flavors" | "options">("size");
   const [selectedFlavors, setSelectedFlavors] = useState<Product[]>([]);
   const [quantity, setQuantity] = useState(1);
   const [sizeOptions, setSizeOptions] = useState<OptionGroup[]>([]);
@@ -77,6 +89,18 @@ export function HalfHalfPizzaModal({
   const [addonOptions, setAddonOptions] = useState<OptionGroup[]>([]);
   const [selectedOptions, setSelectedOptions] = useState<SelectedOption[]>([]);
   const [loading, setLoading] = useState(false);
+  
+  // Pizza sizes
+  const [pizzaSizes, setPizzaSizes] = useState<PizzaSize[]>([]);
+  const [selectedSize, setSelectedSize] = useState<PizzaSize | null>(null);
+  const [loadingSizes, setLoadingSizes] = useState(true);
+
+  // Load pizza sizes when modal opens
+  useEffect(() => {
+    if (open && pizzaProducts.length > 0) {
+      loadPizzaSizes();
+    }
+  }, [open, pizzaProducts]);
 
   useEffect(() => {
     if (open && step === "options" && selectedFlavors.length > 0) {
@@ -86,12 +110,50 @@ export function HalfHalfPizzaModal({
 
   useEffect(() => {
     if (!open) {
-      setStep("flavors");
+      setStep("size");
       setSelectedFlavors([]);
       setQuantity(1);
       setSelectedOptions([]);
+      setSelectedSize(null);
     }
   }, [open]);
+
+  const loadPizzaSizes = async () => {
+    try {
+      setLoadingSizes(true);
+      
+      // Get category from first pizza product
+      const categoryId = pizzaProducts[0]?.category_id;
+      if (!categoryId) {
+        setLoadingSizes(false);
+        // Skip size selection if no category
+        setStep("flavors");
+        return;
+      }
+
+      const { data: sizes, error } = await supabase
+        .from("pizza_category_sizes")
+        .select("id, name, base_price, max_flavors, slices")
+        .eq("category_id", categoryId)
+        .order("sort_order");
+
+      if (error) throw error;
+
+      if (sizes && sizes.length > 0) {
+        setPizzaSizes(sizes);
+        // Auto-select first size
+        setSelectedSize(sizes[0]);
+      } else {
+        // No sizes configured, skip to flavors
+        setStep("flavors");
+      }
+    } catch (error) {
+      console.error("Error loading pizza sizes:", error);
+      setStep("flavors");
+    } finally {
+      setLoadingSizes(false);
+    }
+  };
 
   const loadOptions = async () => {
     try {
@@ -373,21 +435,57 @@ export function HalfHalfPizzaModal({
   };
 
   const calculatePrice = () => {
-    // No fluxo de meio a meio não usamos mais grupo de tamanho.
-    // A base vem sempre do preço dos sabores (já configurados no tamanho Grande).
-    const basePrice =
-      selectedFlavors.length > 0
-        ? selectedFlavors.reduce((sum, f) => sum + f.price, 0) /
-          selectedFlavors.length
-        : 0;
+    // Calculate base price based on pricing rule
+    let basePrice = 0;
+    
+    if (selectedFlavors.length > 0) {
+      const prices = selectedFlavors.map(f => f.price);
+      
+      switch (pricingRule) {
+        case 'highest':
+          // Use the highest price among selected flavors
+          basePrice = Math.max(...prices);
+          break;
+        case 'sum':
+          // Sum proportionally (divide by number of flavors)
+          basePrice = prices.reduce((sum, p) => sum + p, 0) / selectedFlavors.length;
+          break;
+        case 'average':
+        default:
+          // Average of all selected flavors
+          basePrice = prices.reduce((sum, p) => sum + p, 0) / selectedFlavors.length;
+          break;
+      }
+    }
 
-    // Somar bordas e adicionais
+    // Add size price modifier if selected
+    if (selectedSize) {
+      // Size price is the base, flavor prices are modifiers on top
+      // For half-half, we use size as base and add flavor difference
+      const avgFlavorPrice = selectedFlavors.length > 0 
+        ? selectedFlavors.reduce((sum, f) => sum + f.price, 0) / selectedFlavors.length 
+        : 0;
+      
+      // If size has a base price, use it; otherwise use flavor-based calculation
+      if (selectedSize.base_price > 0) {
+        basePrice = selectedSize.base_price;
+      }
+    }
+
+    // Add options price (crust, addons, etc.)
     const optionsPrice = selectedOptions.reduce((sum, opt) => {
       return sum + opt.price_modifier;
     }, 0);
 
-    return (basePrice + optionsPrice) * quantity;
+    // Apply discount if configured
+    const subtotal = basePrice + optionsPrice;
+    const discount = discountPercentage > 0 ? subtotal * (discountPercentage / 100) : 0;
+
+    return (subtotal - discount) * quantity;
   };
+
+  // Get current max flavors based on selected size
+  const currentMaxFlavors = selectedSize?.max_flavors || maxFlavors;
   const handleAddToCart = () => {
     if (selectedFlavors.length === 0) {
       toast.error("Selecione pelo menos um sabor");
@@ -450,14 +548,76 @@ export function HalfHalfPizzaModal({
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto px-6 pt-4 pb-6">
+          {/* Step: Size Selection */}
+          {step === "size" && (
+            <div className="space-y-4">
+              {loadingSizes ? (
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground">Carregando tamanhos...</p>
+                </div>
+              ) : pizzaSizes.length > 0 ? (
+                <>
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-muted-foreground">
+                      Escolha o tamanho da sua pizza
+                    </p>
+                  </div>
+
+                  <RadioGroup
+                    value={selectedSize?.id || ""}
+                    onValueChange={(value) => {
+                      const size = pizzaSizes.find(s => s.id === value);
+                      if (size) setSelectedSize(size);
+                    }}
+                    className="grid gap-3"
+                  >
+                    {pizzaSizes.map((size) => (
+                      <label
+                        key={size.id}
+                        className={`relative flex items-center gap-4 p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                          selectedSize?.id === size.id
+                            ? "border-primary bg-primary/5"
+                            : "border-border hover:border-primary/50"
+                        }`}
+                      >
+                        <RadioGroupItem value={size.id} id={size.id} />
+                        <div className="flex-1">
+                          <p className="font-semibold">{size.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {size.slices} fatias • Até {size.max_flavors} sabores
+                          </p>
+                        </div>
+                        <span className="text-lg font-bold text-primary">
+                          R$ {size.base_price.toFixed(2)}
+                        </span>
+                      </label>
+                    ))}
+                  </RadioGroup>
+                </>
+              ) : (
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground">Nenhum tamanho configurado</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Step: Flavor Selection */}
           {step === "flavors" && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">
-                  Selecione até {maxFlavors} sabores
-                </p>
+                <div>
+                  <p className="text-sm text-muted-foreground">
+                    Selecione até {currentMaxFlavors} sabores
+                  </p>
+                  {selectedSize && (
+                    <p className="text-xs text-primary font-medium">
+                      Tamanho: {selectedSize.name}
+                    </p>
+                  )}
+                </div>
                 <Badge variant="secondary">
-                  {selectedFlavors.length} / {maxFlavors}
+                  {selectedFlavors.length} / {currentMaxFlavors}
                 </Badge>
               </div>
 
@@ -736,6 +896,16 @@ export function HalfHalfPizzaModal({
           )}
 
           <div className="flex flex-col gap-2 sm:flex-row">
+            {step === "flavors" && pizzaSizes.length > 0 && (
+              <Button
+                variant="outline"
+                onClick={() => setStep("size")}
+                className="w-full sm:flex-1"
+              >
+                Voltar
+              </Button>
+            )}
+            
             {step === "options" && (
               <Button
                 variant="outline"
@@ -746,15 +916,23 @@ export function HalfHalfPizzaModal({
               </Button>
             )}
             
-            {step === "flavors" ? (
+            {step === "size" ? (
+              <Button
+                onClick={() => setStep("flavors")}
+                className="w-full sm:flex-1"
+                disabled={!selectedSize && pizzaSizes.length > 0}
+              >
+                Continuar
+              </Button>
+            ) : step === "flavors" ? (
               <Button
                 onClick={() => {
                   if (selectedFlavors.length === 0) {
                     toast.error("Selecione pelo menos um sabor");
                     return;
                   }
-                  if (selectedFlavors.length < maxFlavors) {
-                    toast.error(`Selecione ${maxFlavors} sabores para montar a pizza`);
+                  if (selectedFlavors.length < currentMaxFlavors) {
+                    toast.error(`Selecione ${currentMaxFlavors} sabores para montar a pizza`);
                     return;
                   }
                   if (enableCrust || enableAddons) {

@@ -109,11 +109,20 @@ export function ImageGalleryModal({
     try {
       const filePath = `${companyId}/${imageToDelete.name}`;
       
-      const { error } = await supabase.storage
+      console.log('Attempting to delete image:', filePath);
+      
+      const { data, error } = await supabase.storage
         .from('images')
         .remove([filePath]);
 
+      console.log('Delete result:', { data, error });
+
       if (error) throw error;
+
+      // Verificar se a exclusão realmente ocorreu (data retorna array de arquivos deletados)
+      if (!data || data.length === 0) {
+        console.warn('No files were deleted, file may not exist or permission denied');
+      }
 
       // Remover da lista local
       setImages(prev => prev.filter(img => img.name !== imageToDelete.name));
@@ -127,6 +136,12 @@ export function ImageGalleryModal({
         title: 'Imagem excluída',
         description: 'A imagem foi removida da galeria.',
       });
+
+      // Recarregar a lista para confirmar que a exclusão foi persistida
+      // Pequeno delay para garantir que o Storage sincronizou
+      setTimeout(() => {
+        loadImages();
+      }, 500);
     } catch (error: any) {
       console.error('Erro ao excluir imagem:', error);
       toast({

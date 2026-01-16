@@ -70,6 +70,16 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useSystemLogo } from "@/hooks/useSystemLogo";
 import { useSystemColors } from "@/hooks/useSystemColors";
 
@@ -195,6 +205,7 @@ interface DashboardLayoutProps {
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
   const navRef = useRef<HTMLElement>(null);
   const location = useLocation();
   const navigate = useNavigate();
@@ -217,6 +228,16 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const isElectronApp = typeof navigator !== 'undefined' && 
     (navigator.userAgent.toLowerCase().includes('electron') || 
      (window as any).process?.versions?.electron);
+
+  const handleSignOutClick = () => {
+    // If running in Electron, show confirmation dialog
+    if (isElectronApp) {
+      setShowExitConfirm(true);
+      return;
+    }
+    // Otherwise, just sign out normally
+    handleSignOut();
+  };
 
   const handleSignOut = async () => {
     await signOut();
@@ -498,9 +519,9 @@ const canSeeItem = (item: NavItem): boolean => {
                 </p>
               </div>
               <button
-                onClick={handleSignOut}
+                onClick={handleSignOutClick}
                 className="p-1.5 rounded-md text-sidebar-foreground/70 hover:text-destructive hover:bg-destructive/10 transition-colors"
-                title="Sair"
+                title={isElectronApp ? "Fechar aplicativo" : "Sair"}
               >
                 <LogOut className="h-4 w-4" />
               </button>
@@ -602,6 +623,24 @@ const canSeeItem = (item: NavItem): boolean => {
 
       {/* Botão flutuante de pedidos, renderizado em todas as páginas do dashboard */}
       <FloatingOrdersButton />
+
+      {/* Electron exit confirmation dialog */}
+      <AlertDialog open={showExitConfirm} onOpenChange={setShowExitConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Fechar aplicativo</AlertDialogTitle>
+            <AlertDialogDescription>
+              Deseja realmente sair do sistema e fechar o aplicativo?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleSignOut} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Sair
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

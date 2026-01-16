@@ -115,14 +115,6 @@ export default function DriverLogin() {
         },
       });
 
-      // Debug (sem vazar token)
-      console.log('[DriverLogin] driver-direct-login result', {
-        ok: !invokeError,
-        keys: loginData ? Object.keys(loginData) : null,
-        hasSession: !!loginData?.session,
-        hasMagicLink: !!loginData?.magicLink,
-        hasError: !!loginData?.error,
-      });
 
       // Erro real de rede ou crash da função (500, timeout, etc.)
       if (invokeError) {

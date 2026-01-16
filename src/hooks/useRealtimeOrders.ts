@@ -180,7 +180,7 @@ export function useRealtimeOrders({
             return;
           }
 
-          console.log('[useRealtimeOrders] New order verified:', newOrder.id);
+          
           playNewOrderSound();
 
           toast.success(`Novo pedido de ${newOrder.customer_name}!`, {

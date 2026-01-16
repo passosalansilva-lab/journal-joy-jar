@@ -146,7 +146,7 @@ export function ImageGalleryModal({
         .from('images')
         .remove(filePaths);
 
-      console.log('Delete result:', { data, error });
+      
 
       if (error) throw error;
 

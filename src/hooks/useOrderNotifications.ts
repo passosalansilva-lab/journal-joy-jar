@@ -326,7 +326,7 @@ export function useOrderNotifications() {
               return;
             }
 
-            console.log('[useOrderNotifications] New order verified:', newOrder.id);
+            
             
             // Play notification sound
             if (audioRef.current) {

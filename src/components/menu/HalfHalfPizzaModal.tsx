@@ -709,14 +709,11 @@ export function HalfHalfPizzaModal({
                       >
                         <RadioGroupItem value={size.id} id={size.id} />
                         <div className="flex-1">
-                          <p className="font-semibold">{size.name}</p>
+                          <p className="font-semibold text-lg">{size.name}</p>
                           <p className="text-xs text-muted-foreground">
-                            {size.slices} fatias • Até {size.max_flavors} sabores
+                            {size.slices} fatias
                           </p>
                         </div>
-                        <span className="text-lg font-bold text-primary">
-                          R$ {size.base_price.toFixed(2)}
-                        </span>
                       </label>
                     ))}
                   </RadioGroup>

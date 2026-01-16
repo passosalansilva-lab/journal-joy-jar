@@ -498,49 +498,10 @@ export function PizzaConfigWizard({
                         }
                       />
                     </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Regra de preço</Label>
-                      <div className="flex flex-wrap gap-2">
-                        <Button
-                          type="button"
-                          variant={pricingRule === 'highest_flavor' ? 'default' : 'outline'}
-                          size="sm"
-                          onClick={() => setPricingRule('highest_flavor')}
-                        >
-                          Maior sabor
-                        </Button>
-                        <Button
-                          type="button"
-                          variant={pricingRule === 'average_flavor' ? 'default' : 'outline'}
-                          size="sm"
-                          onClick={() => setPricingRule('average_flavor')}
-                        >
-                          Média dos sabores
-                        </Button>
-                        <Button
-                          type="button"
-                          variant={pricingRule === 'sum_with_discount' ? 'default' : 'outline'}
-                          size="sm"
-                          onClick={() => setPricingRule('sum_with_discount')}
-                        >
-                          Soma com desconto
-                        </Button>
-                      </div>
-                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      A regra de preço do meio a meio é definida nas configurações da categoria de pizza.
+                    </p>
                   </div>
-
-                  {pricingRule === 'sum_with_discount' && (
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Desconto (%) sobre a soma</Label>
-                      <Input
-                        type="number"
-                        min={0}
-                        max={100}
-                        value={discountPercentage}
-                        onChange={(e) => setDiscountPercentage(e.target.value)}
-                      />
-                    </div>
-                  )}
 
                   <div className="flex items-center justify-between gap-3 rounded-md border px-3 py-2">
                     <div className="space-y-0.5">

@@ -284,3 +284,6 @@ verify_jwt = false
 
 [functions.track-promotion-event]
 verify_jwt = false
+
+[functions.force-accept-queued-order]
+verify_jwt = false

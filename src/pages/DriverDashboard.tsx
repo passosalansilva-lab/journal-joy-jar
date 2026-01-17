@@ -150,6 +150,7 @@ export default function DriverDashboard() {
   const [financials, setFinancials] = useState<DriverFinancials>({ pendingEarnings: 0, totalPaid: 0, deliveryCount: 0 });
   const [showPaymentsModal, setShowPaymentsModal] = useState(false);
   const [isMultiDeliveryActive, setIsMultiDeliveryActive] = useState(false);
+  const [forceAccepting, setForceAccepting] = useState<string | null>(null);
 
   // Apply company colors and get branding info (logo)
   const { branding } = useCompanyColors(driver?.company_id || null);
@@ -821,6 +822,40 @@ export default function DriverDashboard() {
       loadFinancials(driver.id);
     }
     setUpdatingOrder(null);
+  };
+
+  // Force accept a queued order - skip the queue and take it immediately
+  const forceAcceptQueuedOrder = async (orderId: string) => {
+    if (!driver) return;
+    
+    setForceAccepting(orderId);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('force-accept-queued-order', {
+        body: { orderId, driverId: driver.id }
+      });
+
+      if (error) throw error;
+      if (data?.error) {
+        toast.error(data.error);
+        setForceAccepting(null);
+        return;
+      }
+
+      toast.success('Pedido liberado! Agora você pode aceitar a entrega.');
+      
+      // Update local state - move from queued to awaiting_driver
+      setOrders(prev => prev.map(o => 
+        o.id === orderId 
+          ? { ...o, status: 'awaiting_driver', queue_position: null } 
+          : o
+      ));
+    } catch (error: any) {
+      console.error('Error forcing accept:', error);
+      toast.error('Erro ao forçar aceite do pedido');
+    } finally {
+      setForceAccepting(null);
+    }
   };
 
   const formatCurrency = (value: number) => {
@@ -1559,15 +1594,29 @@ export default function DriverDashboard() {
                     </div>
                   )}
                   
-                  {/* Queued order info */}
+                  {/* Queued order info with force accept button */}
                   {isQueued && (
-                    <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-sm text-center">
-                      <p className="text-amber-700 dark:text-amber-400 font-medium">
+                    <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-sm">
+                      <p className="text-amber-700 dark:text-amber-400 font-medium text-center">
                         Aguardando na fila (posição {order.queue_position})
                       </p>
-                      <p className="text-muted-foreground text-xs mt-1">
+                      <p className="text-muted-foreground text-xs mt-1 text-center">
                         Este pedido será liberado automaticamente quando você concluir a entrega atual
                       </p>
+                      <Button
+                        className="w-full mt-3"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => forceAcceptQueuedOrder(order.id)}
+                        disabled={forceAccepting === order.id}
+                      >
+                        {forceAccepting === order.id ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <Play className="h-4 w-4 mr-2" />
+                        )}
+                        Forçar / Pegar Agora
+                      </Button>
                     </div>
                   )}
                 </CardContent>

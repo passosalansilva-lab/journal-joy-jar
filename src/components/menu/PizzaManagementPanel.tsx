@@ -957,36 +957,26 @@ export function PizzaManagementPanel({ open, onClose, companyId }: PizzaManageme
                                 <SelectTrigger>
                                   <SelectValue />
                                 </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="average">
-                                    <div className="flex items-center gap-2">
-                                      <span>Média dos sabores</span>
-                                      <span className="text-[10px] bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 px-1.5 py-0.5 rounded font-medium">PROCON</span>
-                                    </div>
-                                  </SelectItem>
+                                <SelectContent className="min-w-[220px]">
+                                  <SelectItem value="average">Média dos sabores ✓</SelectItem>
                                   <SelectItem value="highest">Sabor mais caro</SelectItem>
-                                  <SelectItem value="sum">Soma proporcional (metade de cada)</SelectItem>
+                                  <SelectItem value="sum">Soma proporcional</SelectItem>
                                 </SelectContent>
                               </Select>
-                              <div className="space-y-1">
-                                <p className="text-xs text-muted-foreground">
-                                  {categorySettings.half_half_pricing_rule === 'average' && 'O preço será a média dos sabores escolhidos. Ex: (R$60 + R$40) / 2 = R$50'}
-                                  {categorySettings.half_half_pricing_rule === 'highest' && 'O preço será do sabor mais caro. Ex: R$60 + R$40 = R$60'}
-                                  {categorySettings.half_half_pricing_rule === 'sum' && 'Metade de cada sabor. Ex: (R$60/2) + (R$40/2) = R$50'}
+                              <p className="text-xs text-muted-foreground">
+                                {categorySettings.half_half_pricing_rule === 'average' && 'Ex: (R$60 + R$40) / 2 = R$50'}
+                                {categorySettings.half_half_pricing_rule === 'highest' && 'Ex: R$60 + R$40 = R$60'}
+                                {categorySettings.half_half_pricing_rule === 'sum' && 'Ex: (R$60/2) + (R$40/2) = R$50'}
+                              </p>
+                              {categorySettings.half_half_pricing_rule === 'highest' ? (
+                                <p className="text-xs text-amber-600 dark:text-amber-400">
+                                  ⚠️ Procon considera prática abusiva
                                 </p>
-                                {categorySettings.half_half_pricing_rule === 'highest' && (
-                                  <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                                    <span className="inline-block w-1.5 h-1.5 bg-amber-500 rounded-full"></span>
-                                    Atenção: O Procon considera esta prática abusiva segundo o CDC, pois o cliente consome apenas metade de cada sabor.
-                                  </p>
-                                )}
-                                {(categorySettings.half_half_pricing_rule === 'average' || categorySettings.half_half_pricing_rule === 'sum') && (
-                                  <p className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
-                                    <span className="inline-block w-1.5 h-1.5 bg-green-500 rounded-full"></span>
-                                    Conforme recomendação do Procon/CDC
-                                  </p>
-                                )}
-                              </div>
+                              ) : (
+                                <p className="text-xs text-green-600 dark:text-green-400">
+                                  ✓ Conforme Procon/CDC
+                                </p>
+                              )}
                             </div>
 
                             <div className="space-y-2">

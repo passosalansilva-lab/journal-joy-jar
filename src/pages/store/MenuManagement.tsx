@@ -1623,7 +1623,7 @@ export default function MenuManagement() {
                               </div>
                             </div>
                             <p className="text-sm font-medium">Mais caro</p>
-                            <p className="text-xs text-muted-foreground">sabor de maior valor</p>
+                            <p className="text-[10px] text-muted-foreground leading-tight">maior valor</p>
                           </button>
                           <button
                             type="button"
@@ -1649,7 +1649,7 @@ export default function MenuManagement() {
                               </div>
                             </div>
                             <p className="text-sm font-medium">Mais barato</p>
-                            <p className="text-xs text-muted-foreground">sabor de menor valor</p>
+                            <p className="text-[10px] text-muted-foreground leading-tight">menor valor</p>
                           </button>
                           <button
                             type="button"
@@ -1675,7 +1675,7 @@ export default function MenuManagement() {
                               </div>
                             </div>
                             <p className="text-sm font-medium">Primeiro</p>
-                            <p className="text-xs text-muted-foreground">primeiro selecionado</p>
+                            <p className="text-[10px] text-muted-foreground leading-tight">1º selecionado</p>
                           </button>
                         </div>
                       </div>

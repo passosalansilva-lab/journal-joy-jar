@@ -182,21 +182,62 @@ export function AuthForm({ mode, onToggleMode }: AuthFormProps) {
     setSignupStep(2);
   };
 
+  const sendVerificationCodeWithRetry = async (email: string, maxRetries = 2): Promise<{ success: boolean; error?: string }> => {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`Sending verification code, attempt ${attempt}/${maxRetries}`);
+        
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+
+        const { data: response, error } = await supabase.functions.invoke('send-verification-code', {
+          body: { email },
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!error && !response?.error) {
+          return { success: true };
+        }
+
+        const errorMessage = response?.error || error?.message || 'Erro desconhecido';
+        console.error(`Attempt ${attempt} failed:`, errorMessage);
+
+        // Don't retry on user/validation errors
+        if (errorMessage.includes('já está cadastrado') || 
+            errorMessage.includes('já registrada') ||
+            errorMessage.includes('Email é obrigatório')) {
+          return { success: false, error: errorMessage };
+        }
+
+        // Retry on server errors
+        if (attempt < maxRetries) {
+          await new Promise(resolve => setTimeout(resolve, attempt * 1500));
+        } else {
+          return { success: false, error: errorMessage };
+        }
+      } catch (err: any) {
+        console.error(`Attempt ${attempt} exception:`, err);
+        if (attempt === maxRetries) {
+          return { success: false, error: 'Erro de conexão. Verifique sua internet e tente novamente.' };
+        }
+        await new Promise(resolve => setTimeout(resolve, attempt * 1500));
+      }
+    }
+    return { success: false, error: 'Erro inesperado. Tente novamente.' };
+  };
+
   const handleStep2Submit = async (data: Step2Data) => {
     if (!step1Data) return;
     
     setLoading(true);
     try {
-      // Send verification code
-      const { data: response, error } = await supabase.functions.invoke('send-verification-code', {
-        body: { email: data.email },
-      });
-
-       
-      if (error || response?.error) {
+      const result = await sendVerificationCodeWithRetry(data.email);
+      
+      if (!result.success) {
         toast({
           title: 'Erro ao enviar código',
-          description: "Empresa já registrada",
+          description: result.error || 'Tente novamente',
           variant: 'destructive',
         });
         return;
@@ -221,14 +262,12 @@ export function AuthForm({ mode, onToggleMode }: AuthFormProps) {
     
     setLoading(true);
     try {
-      const { data: response, error } = await supabase.functions.invoke('send-verification-code', {
-        body: { email: step2Data.email },
-      });
+      const result = await sendVerificationCodeWithRetry(step2Data.email);
 
-      if (error || response?.error) {
+      if (!result.success) {
         toast({
           title: 'Erro ao reenviar código',
-          description: response?.error || error?.message || 'Tente novamente',
+          description: result.error || 'Tente novamente',
           variant: 'destructive',
         });
         return;

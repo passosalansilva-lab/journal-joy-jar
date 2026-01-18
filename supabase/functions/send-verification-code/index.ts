@@ -151,26 +151,72 @@ const handler = async (req: Request): Promise<Response> => {
       console.log("Using default template for email-verification");
     }
 
-    // Send email via Resend
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${RESEND_API_KEY}`,
-      },
-      body: JSON.stringify({
-        from: "CardpOn <contato@cardpondelivery.com>",
-        to: [email],
-        subject,
-        html: htmlContent,
-      }),
-    });
+    // Send email via Resend with timeout and retry
+    const sendEmailWithRetry = async (retries = 3, timeout = 10000): Promise<Response> => {
+      for (let attempt = 1; attempt <= retries; attempt++) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeout);
 
-    if (!res.ok) {
-      const errorData = await res.text();
-      console.error("Resend API error:", errorData);
-      throw new Error("Erro ao enviar email de verificação");
-    }
+        try {
+          console.log(`Attempt ${attempt}/${retries} to send email to ${email}`);
+          
+          const res = await fetch("https://api.resend.com/emails", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${RESEND_API_KEY}`,
+            },
+            body: JSON.stringify({
+              from: "CardpOn <contato@cardpondelivery.com>",
+              to: [email],
+              subject,
+              html: htmlContent,
+            }),
+            signal: controller.signal,
+          });
+
+          clearTimeout(timeoutId);
+
+          if (res.ok) {
+            console.log(`Email sent successfully on attempt ${attempt}`);
+            return res;
+          }
+
+          const errorData = await res.text();
+          console.error(`Attempt ${attempt} failed:`, errorData);
+
+          // If it's a 4xx error (client error), don't retry
+          if (res.status >= 400 && res.status < 500) {
+            throw new Error(`Erro do Resend: ${errorData}`);
+          }
+
+          // For 5xx errors, retry
+          if (attempt < retries) {
+            const delay = attempt * 1000; // Exponential backoff: 1s, 2s, 3s
+            console.log(`Waiting ${delay}ms before retry...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+          }
+        } catch (error: any) {
+          clearTimeout(timeoutId);
+          
+          if (error.name === 'AbortError') {
+            console.error(`Attempt ${attempt} timed out after ${timeout}ms`);
+          } else {
+            console.error(`Attempt ${attempt} error:`, error.message);
+          }
+
+          if (attempt === retries) {
+            throw new Error("Erro ao enviar email após várias tentativas. Tente novamente.");
+          }
+
+          const delay = attempt * 1000;
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
+      throw new Error("Erro inesperado ao enviar email");
+    };
+
+    await sendEmailWithRetry();
 
     console.log(`Verification code sent successfully to: ${email}`);
 

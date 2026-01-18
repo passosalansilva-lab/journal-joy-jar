@@ -507,8 +507,8 @@ export default function KitchenDisplay() {
         {/* Main Content - Queue + Details */}
         <div className="flex-1 grid grid-cols-12 gap-4 min-h-0">
           {/* Left Side - Order Queue */}
-          <div className="col-span-4 flex flex-col min-h-0">
-            <div className="flex items-center gap-2 mb-3">
+          <div className="col-span-4 flex flex-col min-h-0 bg-card rounded-xl border shadow-sm overflow-hidden">
+            <div className="flex items-center gap-2 p-4 border-b bg-muted/30 shrink-0">
               <Package className="h-5 w-5 text-primary" />
               <h2 className="font-semibold">Fila de Pedidos</h2>
               <Badge variant="secondary" className="ml-auto">
@@ -516,8 +516,8 @@ export default function KitchenDisplay() {
               </Badge>
             </div>
             
-            <ScrollArea className="flex-1 pr-2">
-              <div className="space-y-2">
+            <ScrollArea className="flex-1 min-h-0">
+              <div className="space-y-2 p-3">
                 <AnimatePresence>
                   {allQueueOrders.length === 0 ? (
                     <div className="text-center py-12 text-muted-foreground">

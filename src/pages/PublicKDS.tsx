@@ -777,8 +777,16 @@ export default function PublicKDS() {
       <main className="p-4 md:p-6">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Confirmed / Waiting Column */}
-          <div>
-            <div className="flex items-center gap-3 mb-4">
+          <div className={cn(
+            "rounded-2xl border overflow-hidden",
+            isDarkMode 
+              ? "bg-slate-900/50 border-slate-800" 
+              : "bg-white/80 border-slate-200 shadow-sm"
+          )}>
+            <div className={cn(
+              "flex items-center gap-3 p-4 border-b",
+              isDarkMode ? "border-slate-800 bg-slate-900" : "border-slate-200 bg-slate-50"
+            )}>
               <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600">
                 <Clock className="h-5 w-5 text-white" />
                 <span className="text-lg font-bold text-white">Aguardando</span>
@@ -788,26 +796,36 @@ export default function PublicKDS() {
               </span>
             </div>
             
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-              {confirmedOrders.map((order) => (
-                <OrderTicket key={order.id} order={order} status="confirmed" />
-              ))}
-            </div>
-
-            {confirmedOrders.length === 0 && (
-              <div className={cn(
-                "text-center py-16",
-                isDarkMode ? "text-slate-600" : "text-slate-400"
-              )}>
-                <Clock className="h-16 w-16 mx-auto mb-3 opacity-30" />
-                <p className="text-lg">Nenhum pedido aguardando</p>
+            <div className="p-4">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+                {confirmedOrders.map((order) => (
+                  <OrderTicket key={order.id} order={order} status="confirmed" />
+                ))}
               </div>
-            )}
+
+              {confirmedOrders.length === 0 && (
+                <div className={cn(
+                  "text-center py-16",
+                  isDarkMode ? "text-slate-600" : "text-slate-400"
+                )}>
+                  <Clock className="h-16 w-16 mx-auto mb-3 opacity-30" />
+                  <p className="text-lg">Nenhum pedido aguardando</p>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Preparing Column */}
-          <div>
-            <div className="flex items-center gap-3 mb-4">
+          <div className={cn(
+            "rounded-2xl border overflow-hidden",
+            isDarkMode 
+              ? "bg-slate-900/50 border-slate-800" 
+              : "bg-white/80 border-slate-200 shadow-sm"
+          )}>
+            <div className={cn(
+              "flex items-center gap-3 p-4 border-b",
+              isDarkMode ? "border-slate-800 bg-slate-900" : "border-slate-200 bg-slate-50"
+            )}>
               <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-orange-500">
                 <ChefHat className="h-5 w-5 text-white" />
                 <span className="text-lg font-bold text-white">Em Preparo</span>
@@ -817,21 +835,23 @@ export default function PublicKDS() {
               </span>
             </div>
             
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-              {preparingOrders.map((order) => (
-                <OrderTicket key={order.id} order={order} status="preparing" />
-              ))}
-            </div>
-
-            {preparingOrders.length === 0 && (
-              <div className={cn(
-                "text-center py-16",
-                isDarkMode ? "text-slate-600" : "text-slate-400"
-              )}>
-                <ChefHat className="h-16 w-16 mx-auto mb-3 opacity-30" />
-                <p className="text-lg">Nenhum pedido em preparo</p>
+            <div className="p-4">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+                {preparingOrders.map((order) => (
+                  <OrderTicket key={order.id} order={order} status="preparing" />
+                ))}
               </div>
-            )}
+
+              {preparingOrders.length === 0 && (
+                <div className={cn(
+                  "text-center py-16",
+                  isDarkMode ? "text-slate-600" : "text-slate-400"
+                )}>
+                  <ChefHat className="h-16 w-16 mx-auto mb-3 opacity-30" />
+                  <p className="text-lg">Nenhum pedido em preparo</p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </main>
